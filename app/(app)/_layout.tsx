@@ -5,6 +5,7 @@
 import { Tabs } from 'expo-router';
 import { useAuth } from '@/lib/auth';
 import { Redirect } from 'expo-router';
+import { Text } from 'react-native';
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
@@ -61,9 +62,3 @@ export default function AppLayout() {
     </Tabs>
   );
 }
-
-// Componente temporal para iconos (luego usar react-native-vector-icons)
-function Text({ children, style }: { children: React.ReactNode; style?: any }) {
-  return <>{children}</>;
-}
-
