@@ -24,16 +24,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       '**/*'
     ],
     ios: {
-      bundleIdentifier: isProduction 
-        ? 'com.desarroyo.delfinowner' 
-        : 'com.desarroyo.delfinowner.dev',
+      bundleIdentifier: 'com.desarroyo.delfinowner',
       supportsTablet: false,
       buildNumber: '1'
     },
     android: {
-      package: isProduction 
-        ? 'com.desarroyo.delfinowner' 
-        : 'com.desarroyo.delfinowner.dev',
+      package: 'com.desarroyo.delfinowner',
       adaptiveIcon: {
         foregroundImage: './assets/icon.png',
         backgroundColor: '#0b1220'
