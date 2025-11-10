@@ -42,7 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       API_URL: apiUrl,
       eas: {
-        projectId: process.env.EAS_PROJECT_ID || ''
+        projectId: '1408210e-72cc-49ab-b045-f91d89452a4e'
       }
     },
     plugins: [
