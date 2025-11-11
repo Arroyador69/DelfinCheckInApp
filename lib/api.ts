@@ -8,6 +8,8 @@ import * as SecureStore from 'expo-secure-store';
 
 const API_URL = Constants.expoConfig?.extra?.API_URL || process.env.EXPO_PUBLIC_API_URL || 'https://admin.delfincheckin.com';
 
+console.log('🌐 API URL configurada:', API_URL);
+
 // Cliente axios configurado
 export const api: AxiosInstance = axios.create({
   baseURL: API_URL,

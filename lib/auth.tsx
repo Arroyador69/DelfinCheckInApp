@@ -84,11 +84,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string): Promise<boolean> {
     try {
+      console.log('🔐 Intentando login con:', { email, apiUrl: api.defaults.baseURL });
       const response = await api.post<LoginResponse>('/api/auth/mobile-login', {
         email,
         password,
       });
 
+      console.log('✅ Respuesta del servidor:', { success: response.data.success, status: response.status });
       if (response.data.success) {
         const sessionData: Session = {
           accessToken: response.data.accessToken,
@@ -107,7 +109,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error: any) {
-      console.error('Error en login:', error);
+      console.error('❌ Error en login:', error);
+      console.error('📡 Detalles del error:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        fullUrl: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A',
+        data: error.response?.data,
+      });
       return false;
     }
   }
