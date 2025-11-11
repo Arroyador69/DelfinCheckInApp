@@ -27,7 +27,7 @@ api.interceptors.request.use(
       }
       
       // Obtener tenant_id del token si está disponible
-      const sessionStr = await SecureStore.getItemAsync('session');
+      const sessionStr = await SecureStore.getItemAsync('delfin.session.v1');
       if (sessionStr) {
         const session = JSON.parse(sessionStr);
         if (session.tenant_id) {
@@ -70,7 +70,7 @@ api.interceptors.response.use(
         // Refresh falló, limpiar sesión
         await SecureStore.deleteItemAsync('accessToken');
         await SecureStore.deleteItemAsync('refreshToken');
-        await SecureStore.deleteItemAsync('session');
+        await SecureStore.deleteItemAsync('delfin.session.v1');
         // Redirigir al login (se manejará en el componente)
       }
     }

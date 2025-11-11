@@ -26,7 +26,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       bundleIdentifier: 'com.desarroyo.delfinowner',
       supportsTablet: false,
-      buildNumber: '1'
+      buildNumber: '1',
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false
+      }
     },
     android: {
       package: 'com.desarroyo.delfinowner',
