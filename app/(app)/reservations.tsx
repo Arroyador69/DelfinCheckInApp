@@ -3,7 +3,7 @@
 // =====================================================
 
 import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useState } from 'react';
 
@@ -21,18 +21,39 @@ interface Reservation {
 
 export default function ReservationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
-  const { data: reservations, isLoading, refetch } = useQuery({
-    queryKey: ['reservations'],
+  // Obtener reservas directas
+  const { data: directReservations } = useQuery({
+    queryKey: ['direct-reservations'],
     queryFn: async () => {
       const response = await api.get('/api/tenant/direct-reservations');
-      return response.data.reservations as Reservation[];
+      return response.data.reservations || [];
     },
   });
 
+  // Obtener reservas normales
+  const { data: normalReservations } = useQuery({
+    queryKey: ['reservations'],
+    queryFn: async () => {
+      const response = await api.get('/api/reservations');
+      return response.data || [];
+    },
+  });
+
+  const reservations = [
+    ...(directReservations || []),
+    ...(normalReservations || []),
+  ] as Reservation[];
+
+  const isLoading = !directReservations && !normalReservations;
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['direct-reservations'] }),
+      queryClient.refetchQueries({ queryKey: ['reservations'] }),
+    ]);
     setRefreshing(false);
   };
 
@@ -70,51 +91,75 @@ export default function ReservationsScreen() {
       style={styles.container}
       data={reservations || []}
       keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.reservationCode}>{item.reservation_code}</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: getStatusColor(item.reservation_status) + '20' },
-              ]}
-            >
-              <Text
+      renderItem={({ item }) => {
+        const status = item.reservation_status || item.status || 'unknown';
+        const checkIn = item.check_in_date || item.check_in;
+        const checkOut = item.check_out_date || item.check_out;
+        
+        return (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.reservationCode}>
+                {item.reservation_code || `#${item.id}`}
+              </Text>
+              <View
                 style={[
-                  styles.statusText,
-                  { color: getStatusColor(item.reservation_status) },
+                  styles.statusBadge,
+                  { backgroundColor: getStatusColor(status) + '20' },
                 ]}
               >
-                {item.reservation_status === 'confirmed'
-                  ? 'Confirmada'
-                  : item.reservation_status === 'cancelled'
-                  ? 'Cancelada'
-                  : 'Completada'}
+                <Text
+                  style={[
+                    styles.statusText,
+                    { color: getStatusColor(status) },
+                  ]}
+                >
+                  {status === 'confirmed'
+                    ? 'Confirmada'
+                    : status === 'cancelled'
+                    ? 'Cancelada'
+                    : status === 'completed'
+                    ? 'Completada'
+                    : status}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.guestName}>
+              {item.guest_name || item.guestName}
+            </Text>
+            {(item.guest_email || item.guestEmail) && (
+              <Text style={styles.guestEmail}>
+                {item.guest_email || item.guestEmail}
               </Text>
+            )}
+            <Text style={styles.propertyName}>
+              {item.property_name || item.room_id || 'N/A'}
+            </Text>
+
+            <View style={styles.datesContainer}>
+              <View style={styles.dateItem}>
+                <Text style={styles.dateLabel}>Check-in:</Text>
+                <Text style={styles.dateValue}>
+                  {checkIn ? formatDate(checkIn) : 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.dateItem}>
+                <Text style={styles.dateLabel}>Check-out:</Text>
+                <Text style={styles.dateValue}>
+                  {checkOut ? formatDate(checkOut) : 'N/A'}
+                </Text>
+              </View>
             </View>
+
+            {(item.total_amount || item.total_price) && (
+              <Text style={styles.amount}>
+                {parseFloat(String(item.total_amount || item.total_price || 0)).toFixed(2)} €
+              </Text>
+            )}
           </View>
-
-          <Text style={styles.guestName}>{item.guest_name}</Text>
-          <Text style={styles.guestEmail}>{item.guest_email}</Text>
-          <Text style={styles.propertyName}>{item.property_name}</Text>
-
-          <View style={styles.datesContainer}>
-            <View style={styles.dateItem}>
-              <Text style={styles.dateLabel}>Check-in:</Text>
-              <Text style={styles.dateValue}>{formatDate(item.check_in_date)}</Text>
-            </View>
-            <View style={styles.dateItem}>
-              <Text style={styles.dateLabel}>Check-out:</Text>
-              <Text style={styles.dateValue}>{formatDate(item.check_out_date)}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.amount}>
-            {parseFloat(String(item.total_amount)).toFixed(2)} €
-          </Text>
-        </View>
-      )}
+        );
+      }}
       ListEmptyComponent={
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No hay reservas</Text>

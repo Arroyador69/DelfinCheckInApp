@@ -1,17 +1,21 @@
 // =====================================================
-// LAYOUT DE LA APP (Tabs)
+// LAYOUT DE LA APP (Tabs + Menú Hamburguesa)
 // =====================================================
 
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { useAuth } from '@/lib/auth';
 import { Redirect } from 'expo-router';
-import { Text } from 'react-native';
+import { Text, Pressable, View } from 'react-native';
+import { useState } from 'react';
+import DrawerMenu from '@/components/DrawerMenu';
+import { Menu } from 'lucide-react-native';
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (loading) {
-    return null; // O un componente de loading
+    return null;
   }
 
   if (!session) {
@@ -19,46 +23,93 @@ export default function AppLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: true,
-        headerTitleAlign: 'center',
-        tabBarActiveTintColor: '#2563eb',
-        tabBarInactiveTintColor: '#6b7280',
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Inicio',
-          tabBarLabel: 'Inicio',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏠</Text>,
+    <>
+      <Tabs
+        screenOptions={{
+          headerShown: true,
+          headerTitleAlign: 'center',
+          tabBarActiveTintColor: '#2563eb',
+          tabBarInactiveTintColor: '#6b7280',
+          headerLeft: () => (
+            <Pressable
+              onPress={() => setDrawerOpen(true)}
+              style={{ marginLeft: 16, padding: 8 }}
+            >
+              <Menu size={24} color="#1f2937" />
+            </Pressable>
+          ),
         }}
-      />
-      <Tabs.Screen
-        name="reservations"
-        options={{
-          title: 'Reservas',
-          tabBarLabel: 'Reservas',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📅</Text>,
-        }}
-      />
-      <Tabs.Screen
-        name="invoices"
-        options={{
-          title: 'Facturación',
-          tabBarLabel: 'Facturación',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>💰</Text>,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Ajustes',
-          tabBarLabel: 'Ajustes',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>⚙️</Text>,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Inicio',
+            tabBarLabel: 'Inicio',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏠</Text>,
+          }}
+        />
+        <Tabs.Screen
+          name="reservations"
+          options={{
+            title: 'Reservas',
+            tabBarLabel: 'Reservas',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📅</Text>,
+          }}
+        />
+        <Tabs.Screen
+          name="invoices"
+          options={{
+            title: 'Facturación',
+            tabBarLabel: 'Facturación',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>💰</Text>,
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Ajustes',
+            tabBarLabel: 'Ajustes',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>⚙️</Text>,
+          }}
+        />
+        {/* Pantallas ocultas del menú hamburguesa */}
+        <Tabs.Screen
+          name="calendar"
+          options={{
+            href: null, // Ocultar del tab bar
+            title: 'Calendario',
+          }}
+        />
+        <Tabs.Screen
+          name="direct-reservations"
+          options={{
+            href: null,
+            title: 'Reservas Directas',
+          }}
+        />
+        <Tabs.Screen
+          name="mir-comunicaciones"
+          options={{
+            href: null,
+            title: 'Comunicaciones MIR',
+          }}
+        />
+        <Tabs.Screen
+          name="properties"
+          options={{
+            href: null,
+            title: 'Propiedades',
+          }}
+        />
+        <Tabs.Screen
+          name="billing"
+          options={{
+            href: null,
+            title: 'Facturación',
+          }}
+        />
+      </Tabs>
+      <DrawerMenu isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
+    </>
   );
 }
