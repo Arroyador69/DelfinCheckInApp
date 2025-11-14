@@ -57,11 +57,11 @@ export default function AppLayout() {
           }}
         />
         <Tabs.Screen
-          name="invoices"
+          name="calendar"
           options={{
-            title: 'Facturación',
-            tabBarLabel: 'Facturación',
-            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>💰</Text>,
+            title: 'Calendario',
+            tabBarLabel: 'Calendario',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📆</Text>,
           }}
         />
         <Tabs.Screen
@@ -74,17 +74,10 @@ export default function AppLayout() {
         />
         {/* Pantallas ocultas del menú hamburguesa */}
         <Tabs.Screen
-          name="calendar"
+          name="invoices"
           options={{
             href: null, // Ocultar del tab bar
-            title: 'Calendario',
-          }}
-        />
-        <Tabs.Screen
-          name="direct-reservations"
-          options={{
-            href: null,
-            title: 'Reservas Directas',
+            title: 'Facturación',
           }}
         />
         <Tabs.Screen
@@ -95,17 +88,10 @@ export default function AppLayout() {
           }}
         />
         <Tabs.Screen
-          name="properties"
+          name="payment-links"
           options={{
             href: null,
-            title: 'Propiedades',
-          }}
-        />
-        <Tabs.Screen
-          name="billing"
-          options={{
-            href: null,
-            title: 'Facturación',
+            title: 'Enlaces de Pago',
           }}
         />
       </Tabs>

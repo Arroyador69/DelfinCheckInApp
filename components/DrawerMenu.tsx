@@ -24,11 +24,9 @@ const menuItems: MenuItem[] = [
   { name: 'Dashboard', href: '/(app)', icon: Home },
   { name: 'Reservas', href: '/(app)/reservations', icon: Calendar },
   { name: 'Calendario', href: '/(app)/calendar', icon: Calendar },
-  { name: 'Reservas Directas', href: '/(app)/direct-reservations', icon: FileText },
   { name: 'Comunicaciones MIR', href: '/(app)/mir-comunicaciones', icon: FileText },
-  { name: 'Propiedades', href: '/(app)/properties', icon: Home },
+  { name: 'Enlaces de Pago', href: '/(app)/payment-links', icon: CreditCard },
   { name: 'Configuración', href: '/(app)/settings', icon: Settings },
-  { name: 'Facturación', href: '/(app)/billing', icon: CreditCard },
 ];
 
 interface DrawerMenuProps {

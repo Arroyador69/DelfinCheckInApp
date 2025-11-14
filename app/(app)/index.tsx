@@ -6,16 +6,25 @@ import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native
 import { useAuth } from '@/lib/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { Users, ArrowDownCircle, ArrowUpCircle, Calendar } from 'lucide-react-native';
 
 interface Reservation {
   id: number;
-  reservation_code: string;
+  reservation_code?: string;
   guest_name: string;
-  property_name: string;
-  check_in_date: string;
-  check_out_date: string;
-  reservation_status: string;
+  guest_email?: string;
+  guest_phone?: string;
+  property_name?: string;
+  room_id?: string;
+  check_in_date?: string;
+  check_in?: string;
+  check_out_date?: string;
+  check_out?: string;
+  reservation_status?: string;
+  status?: string;
+  total_amount?: number;
+  total_price?: number;
 }
 
 export default function DashboardScreen() {
@@ -23,17 +32,8 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const queryClient = useQueryClient();
 
-  // Obtener reservas directas
-  const { data: directReservations, isLoading: loadingDirect } = useQuery({
-    queryKey: ['direct-reservations'],
-    queryFn: async () => {
-      const response = await api.get('/api/tenant/direct-reservations');
-      return response.data.reservations || [];
-    },
-  });
-
   // Obtener reservas normales
-  const { data: reservations, isLoading: loadingNormal } = useQuery({
+  const { data: reservations, isLoading } = useQuery({
     queryKey: ['reservations'],
     queryFn: async () => {
       const response = await api.get('/api/reservations');
@@ -41,25 +41,107 @@ export default function DashboardScreen() {
     },
   });
 
-  const isLoading = loadingDirect || loadingNormal;
-  const allReservations = [
-    ...(directReservations || []),
-    ...(reservations || []),
-  ];
+  const allReservations = (reservations || []) as Reservation[];
 
-  const today = new Date().toISOString().split('T')[0];
-  const todayReservations = allReservations.filter((r) => {
-    const checkIn = r.check_in_date || r.check_in;
-    return checkIn?.startsWith(today) && (r.reservation_status === 'confirmed' || r.status === 'confirmed');
-  });
+  // Filtrar reservas por estado
+  const { stayingToday, arrivingToday, leavingToday, upcomingReservations } = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    const staying: Reservation[] = [];
+    const arriving: Reservation[] = [];
+    const leaving: Reservation[] = [];
+    const upcoming: Reservation[] = [];
+
+    allReservations.forEach((r) => {
+      const status = r.reservation_status || r.status || '';
+      if (status !== 'confirmed' && status !== 'completed') return;
+
+      const checkIn = r.check_in_date || r.check_in;
+      const checkOut = r.check_out_date || r.check_out;
+
+      if (!checkIn || !checkOut) return;
+
+      const checkInDate = new Date(checkIn);
+      checkInDate.setHours(0, 0, 0, 0);
+      const checkOutDate = new Date(checkOut);
+      checkOutDate.setHours(0, 0, 0, 0);
+
+      const checkInStr = checkInDate.toISOString().split('T')[0];
+      const checkOutStr = checkOutDate.toISOString().split('T')[0];
+
+      // Quién llega hoy
+      if (checkInStr === todayStr) {
+        arriving.push(r);
+      }
+
+      // Quién se va hoy
+      if (checkOutStr === todayStr) {
+        leaving.push(r);
+      }
+
+      // Quién hay hoy (check-in <= hoy y check-out >= hoy)
+      if (checkInDate <= today && checkOutDate >= today) {
+        staying.push(r);
+      }
+
+      // Próximas reservas (check-in > hoy)
+      if (checkInDate > today) {
+        upcoming.push(r);
+      }
+    });
+
+    // Ordenar próximas reservas por fecha de check-in
+    upcoming.sort((a, b) => {
+      const dateA = new Date(a.check_in_date || a.check_in || '');
+      const dateB = new Date(b.check_in_date || b.check_in || '');
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    return {
+      stayingToday: staying,
+      arrivingToday: arriving,
+      leavingToday: leaving,
+      upcomingReservations: upcoming.slice(0, 5), // Solo las próximas 5
+    };
+  }, [allReservations]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      queryClient.refetchQueries({ queryKey: ['direct-reservations'] }),
-      queryClient.refetchQueries({ queryKey: ['reservations'] }),
-    ]);
+    await queryClient.refetchQueries({ queryKey: ['reservations'] });
     setRefreshing(false);
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'short',
+    });
+  };
+
+  const ReservationCard = ({ reservation, showDates = true }: { reservation: Reservation; showDates?: boolean }) => {
+    const checkIn = reservation.check_in_date || reservation.check_in;
+    const checkOut = reservation.check_out_date || reservation.check_out;
+    const priceValue = reservation.total_amount ?? reservation.total_price ?? null;
+    const price = priceValue !== null && priceValue !== undefined ? parseFloat(String(priceValue)) : 0;
+
+    return (
+      <View style={styles.reservationCard}>
+        <View style={styles.reservationHeader}>
+          <Text style={styles.reservationGuestName}>{reservation.guest_name}</Text>
+          {price > 0 && !isNaN(price) && <Text style={styles.reservationPrice}>{price.toFixed(2)} €</Text>}
+        </View>
+        <Text style={styles.reservationProperty}>
+          {reservation.property_name || reservation.room_id || 'N/A'}
+        </Text>
+        {showDates && checkIn && checkOut && (
+          <Text style={styles.reservationDates}>
+            {formatDate(checkIn)} - {formatDate(checkOut)}
+          </Text>
+        )}
+      </View>
+    );
   };
 
   return (
@@ -72,40 +154,89 @@ export default function DashboardScreen() {
         <Text style={styles.tenantName}>{session?.user.tenant.name}</Text>
       </View>
 
+      {/* Quién hay hoy */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Llegadas de hoy</Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <Users size={20} color="#2563eb" />
+            <Text style={styles.cardTitle}>Quién hay hoy</Text>
+          </View>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{stayingToday.length}</Text>
+          </View>
+        </View>
         {isLoading ? (
           <Text style={styles.emptyText}>Cargando...</Text>
-        ) : todayReservations.length === 0 ? (
-          <Text style={styles.emptyText}>No hay llegadas programadas para hoy</Text>
+        ) : stayingToday.length === 0 ? (
+          <Text style={styles.emptyText}>No hay huéspedes alojados hoy</Text>
         ) : (
-          todayReservations.map((reservation, index) => (
-            <View key={reservation.id || index} style={styles.reservationItem}>
-              <Text style={styles.guestName}>
-                {reservation.guest_name || reservation.guestName}
-              </Text>
-              <Text style={styles.propertyName}>
-                {reservation.property_name || reservation.room_id || 'N/A'}
-              </Text>
-              <Text style={styles.dates}>
-                {new Date(reservation.check_in_date || reservation.check_in).toLocaleDateString('es-ES')} -{' '}
-                {new Date(reservation.check_out_date || reservation.check_out).toLocaleDateString('es-ES')}
-              </Text>
-            </View>
+          stayingToday.map((reservation, index) => (
+            <ReservationCard key={reservation.id || index} reservation={reservation} />
           ))
         )}
       </View>
 
+      {/* Quién llega hoy */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Resumen</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total reservas:</Text>
-          <Text style={styles.summaryValue}>{allReservations.length}</Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <ArrowDownCircle size={20} color="#10b981" />
+            <Text style={styles.cardTitle}>Quién llega hoy</Text>
+          </View>
+          <View style={[styles.badge, styles.badgeSuccess]}>
+            <Text style={styles.badgeText}>{arrivingToday.length}</Text>
+          </View>
         </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Hoy:</Text>
-          <Text style={styles.summaryValue}>{todayReservations.length}</Text>
+        {isLoading ? (
+          <Text style={styles.emptyText}>Cargando...</Text>
+        ) : arrivingToday.length === 0 ? (
+          <Text style={styles.emptyText}>No hay llegadas programadas para hoy</Text>
+        ) : (
+          arrivingToday.map((reservation, index) => (
+            <ReservationCard key={reservation.id || index} reservation={reservation} />
+          ))
+        )}
+      </View>
+
+      {/* Quién se va hoy */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <ArrowUpCircle size={20} color="#f59e0b" />
+            <Text style={styles.cardTitle}>Quién se va hoy</Text>
+          </View>
+          <View style={[styles.badge, styles.badgeWarning]}>
+            <Text style={styles.badgeText}>{leavingToday.length}</Text>
+          </View>
         </View>
+        {isLoading ? (
+          <Text style={styles.emptyText}>Cargando...</Text>
+        ) : leavingToday.length === 0 ? (
+          <Text style={styles.emptyText}>No hay salidas programadas para hoy</Text>
+        ) : (
+          leavingToday.map((reservation, index) => (
+            <ReservationCard key={reservation.id || index} reservation={reservation} />
+          ))
+        )}
+      </View>
+
+      {/* Próximas reservas */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <Calendar size={20} color="#8b5cf6" />
+            <Text style={styles.cardTitle}>Próximas reservas</Text>
+          </View>
+        </View>
+        {isLoading ? (
+          <Text style={styles.emptyText}>Cargando...</Text>
+        ) : upcomingReservations.length === 0 ? (
+          <Text style={styles.emptyText}>No hay reservas próximas</Text>
+        ) : (
+          upcomingReservations.map((reservation, index) => (
+            <ReservationCard key={reservation.id || index} reservation={reservation} />
+          ))
+        )}
       </View>
     </ScrollView>
   );
@@ -135,6 +266,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: 'white',
     margin: 16,
+    marginBottom: 0,
     padding: 20,
     borderRadius: 12,
     shadowColor: '#000',
@@ -143,30 +275,71 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  reservationItem: {
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  badge: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 32,
+    alignItems: 'center',
+  },
+  badgeSuccess: {
+    backgroundColor: '#d1fae5',
+  },
+  badgeWarning: {
+    backgroundColor: '#fef3c7',
+  },
+  badgeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2563eb',
+  },
+  reservationCard: {
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
     marginBottom: 8,
   },
-  guestName: {
+  reservationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  reservationGuestName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 4,
+    flex: 1,
   },
-  propertyName: {
+  reservationPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2563eb',
+    marginLeft: 8,
+  },
+  reservationProperty: {
     fontSize: 14,
     color: '#6b7280',
     marginBottom: 4,
   },
-  dates: {
+  reservationDates: {
     fontSize: 14,
     color: '#2563eb',
   },
@@ -174,20 +347,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     fontStyle: 'italic',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    textAlign: 'center',
     paddingVertical: 8,
   },
-  summaryLabel: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
 });
-
