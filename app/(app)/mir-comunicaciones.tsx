@@ -8,17 +8,29 @@ import { api } from '@/lib/api';
 import { useState } from 'react';
 import { Search, Mail, Phone, Calendar, Users } from 'lucide-react-native';
 
-interface FormSubmission {
-  id: number | string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  checkin?: string | null;
-  checkout?: string | null;
-  guests?: number | null;
-  room_type?: string | null;
-  message?: string | null;
+interface GuestRegistration {
+  id: string;
+  reserva_ref?: string;
+  fecha_entrada: string;
+  fecha_salida: string;
   created_at: string;
+  updated_at?: string;
+  viajero?: {
+    nombre: string;
+    apellido1: string;
+    apellido2?: string;
+    nacionalidad?: string;
+    tipoDocumento?: string;
+    numeroDocumento?: string;
+  };
+  contrato?: {
+    codigoEstablecimiento?: string;
+    referencia?: string;
+    numHabitaciones?: number;
+    internet?: boolean;
+    tipoPago?: string;
+  };
+  data?: any;
 }
 
 export default function MIRComunicacionesScreen() {
@@ -27,39 +39,58 @@ export default function MIRComunicacionesScreen() {
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch, error } = useQuery({
-    queryKey: ['form-submissions', searchTerm],
+    queryKey: ['guest-registrations', searchTerm],
     queryFn: async () => {
       try {
-        const params = searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : '';
-        const response = await api.get(`/api/forms/submissions${params}`);
+        const response = await api.get('/api/guest-registrations');
         
-        // Normalizar datos para asegurar que siempre tengamos la estructura correcta
-        const submissions = (response.data?.submissions || []).map((item: any) => ({
-          id: item.id,
-          name: item.name || 'Sin nombre',
-          email: item.email || 'Sin email',
-          phone: item.phone || null,
-          checkin: item.checkin || null,
-          checkout: item.checkout || null,
-          guests: item.guests || null,
-          room_type: item.room_type || null,
-          message: item.message || null,
-          created_at: item.created_at || new Date().toISOString(),
-        }));
+        // La API puede devolver array directo o objeto con items
+        const registrationsData = Array.isArray(response.data) 
+          ? response.data 
+          : (response.data?.items || []);
+        
+        // Filtrar por búsqueda si existe
+        let filtered = registrationsData;
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          filtered = registrationsData.filter((item: GuestRegistration) => {
+            const nombre = item.viajero?.nombre?.toLowerCase() || '';
+            const apellido = item.viajero?.apellido1?.toLowerCase() || '';
+            const referencia = item.contrato?.referencia?.toLowerCase() || '';
+            const reservaRef = item.reserva_ref?.toLowerCase() || '';
+            return nombre.includes(searchLower) || 
+                   apellido.includes(searchLower) || 
+                   referencia.includes(searchLower) ||
+                   reservaRef.includes(searchLower);
+          });
+        }
+        
+        // Calcular estadísticas
+        const now = new Date();
+        const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        
+        const stats = {
+          total_submissions: registrationsData.length,
+          submissions_last_7_days: registrationsData.filter((item: GuestRegistration) => {
+            const created = new Date(item.created_at);
+            return created >= last7Days;
+          }).length,
+          submissions_last_30_days: registrationsData.filter((item: GuestRegistration) => {
+            const created = new Date(item.created_at);
+            return created >= last30Days;
+          }).length,
+        };
         
         return {
-          submissions,
-          stats: response.data?.stats || {
-            total_submissions: submissions.length,
-            submissions_last_7_days: 0,
-            submissions_last_30_days: 0,
-          },
+          registrations: filtered,
+          stats,
         };
       } catch (err: any) {
-        console.error('❌ Error obteniendo formularios:', err.message);
-        // Retornar datos vacíos en lugar de lanzar error para que la UI no se rompa
+        console.error('❌ Error obteniendo registros:', err.message);
+        // Retornar datos vacíos en lugar de lanzar error
         return {
-          submissions: [],
+          registrations: [],
           stats: {
             total_submissions: 0,
             submissions_last_7_days: 0,
@@ -70,7 +101,7 @@ export default function MIRComunicacionesScreen() {
     },
   });
 
-  const submissions: FormSubmission[] = data?.submissions || [];
+  const registrations: GuestRegistration[] = data?.registrations || [];
   const stats = data?.stats || {};
 
   const onRefresh = async () => {
@@ -98,7 +129,7 @@ export default function MIRComunicacionesScreen() {
   }
 
   // Si hay error pero tenemos datos vacíos, mostrar la lista vacía en lugar del error
-  const showError = error && (!data || submissions.length === 0);
+  const showError = error && (!data || registrations.length === 0);
 
   return (
     <View style={styles.container}>
@@ -146,57 +177,92 @@ export default function MIRComunicacionesScreen() {
         </View>
       )}
 
-      {/* Lista de envíos */}
+      {/* Lista de registros */}
       <FlatList
-        data={submissions}
+        data={registrations}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.name}>{item.name || 'Sin nombre'}</Text>
-              <Text style={styles.date}>{formatDate(item.created_at)}</Text>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Mail size={16} color="#6b7280" />
-              <Text style={styles.infoText}>{item.email || 'Sin email'}</Text>
-            </View>
-
-            {item.phone && (
-              <View style={styles.infoRow}>
-                <Phone size={16} color="#6b7280" />
-                <Text style={styles.infoText}>{item.phone}</Text>
+        renderItem={({ item }) => {
+          const nombreCompleto = item.viajero 
+            ? `${item.viajero.nombre || ''} ${item.viajero.apellido1 || ''} ${item.viajero.apellido2 || ''}`.trim()
+            : 'Sin nombre';
+          
+          return (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.name}>{nombreCompleto || 'Registro MIR'}</Text>
+                <Text style={styles.date}>{formatDate(item.created_at)}</Text>
               </View>
-            )}
 
-            {(item.checkin || item.checkout) && (
+              {item.contrato?.referencia && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Referencia:</Text>
+                  <Text style={styles.infoText}>{item.contrato.referencia}</Text>
+                </View>
+              )}
+
+              {item.reserva_ref && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Reserva:</Text>
+                  <Text style={styles.infoText}>{item.reserva_ref}</Text>
+                </View>
+              )}
+
               <View style={styles.infoRow}>
                 <Calendar size={16} color="#6b7280" />
                 <Text style={styles.infoText}>
-                  {item.checkin && new Date(item.checkin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                  {item.checkin && item.checkout && ' - '}
-                  {item.checkout && new Date(item.checkout).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                  Entrada: {new Date(item.fecha_entrada).toLocaleDateString('es-ES', { 
+                    day: 'numeric', 
+                    month: 'short',
+                    year: 'numeric'
+                  })}
                 </Text>
               </View>
-            )}
 
-            {item.guests && (
               <View style={styles.infoRow}>
-                <Users size={16} color="#6b7280" />
-                <Text style={styles.infoText}>{item.guests} huésped{item.guests > 1 ? 'es' : ''}</Text>
-              </View>
-            )}
-
-            {item.message && item.message.length > 0 && (
-              <View style={styles.messageContainer}>
-                <Text style={styles.messageLabel}>Mensaje:</Text>
-                <Text style={styles.messageText} numberOfLines={3}>
-                  {item.message}
+                <Calendar size={16} color="#6b7280" />
+                <Text style={styles.infoText}>
+                  Salida: {new Date(item.fecha_salida).toLocaleDateString('es-ES', { 
+                    day: 'numeric', 
+                    month: 'short',
+                    year: 'numeric'
+                  })}
                 </Text>
               </View>
-            )}
-          </View>
-        )}
+
+              {item.viajero?.nacionalidad && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Nacionalidad:</Text>
+                  <Text style={styles.infoText}>{item.viajero.nacionalidad}</Text>
+                </View>
+              )}
+
+              {item.viajero?.numeroDocumento && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Documento:</Text>
+                  <Text style={styles.infoText}>
+                    {item.viajero.tipoDocumento || 'NIF'} {item.viajero.numeroDocumento}
+                  </Text>
+                </View>
+              )}
+
+              {item.contrato?.codigoEstablecimiento && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Establecimiento:</Text>
+                  <Text style={styles.infoText}>{item.contrato.codigoEstablecimiento}</Text>
+                </View>
+              )}
+
+              {item.contrato?.numHabitaciones && (
+                <View style={styles.infoRow}>
+                  <Users size={16} color="#6b7280" />
+                  <Text style={styles.infoText}>
+                    {item.contrato.numHabitaciones} habitación{item.contrato.numHabitaciones > 1 ? 'es' : ''}
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
@@ -302,6 +368,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     flex: 1,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: '600',
+    marginRight: 8,
+    minWidth: 100,
   },
   roomType: {
     fontSize: 14,
