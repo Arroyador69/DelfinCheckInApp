@@ -42,12 +42,24 @@ export default function MIRComunicacionesScreen() {
     queryKey: ['guest-registrations', searchTerm],
     queryFn: async () => {
       try {
+        console.log('📱 App móvil: Obteniendo registros de guest-registrations...');
         const response = await api.get('/api/guest-registrations');
+        
+        console.log('📦 Respuesta completa:', {
+          status: response.status,
+          hasData: !!response.data,
+          isArray: Array.isArray(response.data),
+          hasItems: !!response.data?.items,
+          itemsLength: response.data?.items?.length || 0,
+          ok: response.data?.ok
+        });
         
         // La API puede devolver array directo o objeto con items
         const registrationsData = Array.isArray(response.data) 
           ? response.data 
           : (response.data?.items || []);
+        
+        console.log(`✅ ${registrationsData.length} registros obtenidos en app móvil`);
         
         // Filtrar por búsqueda si existe
         let filtered = registrationsData;

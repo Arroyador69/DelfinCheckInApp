@@ -26,18 +26,38 @@ api.interceptors.request.use(
       const token = await SecureStore.getItemAsync('accessToken');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('🔑 Token añadido a request:', config.url);
       }
       
-      // Obtener tenant_id del token si está disponible
+      // Obtener tenant_id de la sesión
       const sessionStr = await SecureStore.getItemAsync('delfin.session.v1');
       if (sessionStr) {
         const session = JSON.parse(sessionStr);
         if (session.tenant_id) {
           config.headers['x-tenant-id'] = session.tenant_id;
+          console.log('🏢 Tenant ID añadido a request:', session.tenant_id, 'para URL:', config.url);
+        } else {
+          console.warn('⚠️ Sesión no tiene tenant_id:', session);
+        }
+      } else {
+        console.warn('⚠️ No se encontró sesión en SecureStore');
+      }
+      
+      // También intentar obtener tenant_id del token JWT si no está en la sesión
+      if (!config.headers['x-tenant-id'] && token) {
+        try {
+          // Decodificar JWT (solo payload, sin verificar firma)
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.tenantId) {
+            config.headers['x-tenant-id'] = payload.tenantId;
+            console.log('🔑 Tenant ID obtenido del JWT:', payload.tenantId);
+          }
+        } catch (jwtError) {
+          console.warn('⚠️ No se pudo decodificar JWT para obtener tenantId:', jwtError);
         }
       }
     } catch (error) {
-      console.error('Error obteniendo token:', error);
+      console.error('❌ Error obteniendo token o tenant_id:', error);
     }
     return config;
   },

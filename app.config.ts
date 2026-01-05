@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     splash: {
       image: './assets/splash.png',
       resizeMode: 'contain',
-      backgroundColor: '#0b1220'
+      backgroundColor: '#0D9488' // Teal del logo de Delfín Check-in
     },
     updates: {
       fallbackToCacheTimeout: 0
@@ -28,14 +28,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: false,
       buildNumber: '1',
       infoPlist: {
-        ITSAppUsesNonExemptEncryption: false
-      }
+        ITSAppUsesNonExemptEncryption: false,
+        // Deshabilitar Mac Catalyst para evitar crashes en macOS
+        'UIApplicationSupportsIndirectInputEvents': false
+      },
+      // Deshabilitar Mac Catalyst explícitamente
+      requireFullScreen: true
     },
     android: {
       package: 'com.desarroyo.delfinowner',
       adaptiveIcon: {
         foregroundImage: './assets/icon.png',
-        backgroundColor: '#0b1220'
+        backgroundColor: '#0D9488' // Teal del logo de Delfín Check-in
       },
       versionCode: 1
     },
@@ -52,11 +56,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       'expo-secure-store',
       'expo-notifications',
+      './plugins/withNoMacCatalyst',
       [
         'expo-build-properties',
         {
           ios: {
-            useFrameworks: 'static'
+            useFrameworks: 'static',
+            deploymentTarget: '15.1'
           },
           android: {
             kotlinVersion: '1.9.0'

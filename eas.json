@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 11.0.0"
+    "version": ">= 11.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -21,6 +22,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      },
       "ios": {
         "simulator": false
       },
@@ -31,11 +35,7 @@
   },
   "submit": {
     "production": {
-      "ios": {
-        "appleId": "your-email@example.com",
-        "ascAppId": "your-app-store-connect-app-id",
-        "appleTeamId": "your-team-id"
-      },
+      "ios": {},
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"
@@ -43,4 +43,3 @@
     }
   }
 }
-
