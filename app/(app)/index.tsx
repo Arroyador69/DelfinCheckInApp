@@ -47,7 +47,8 @@ export default function DashboardScreen() {
   const { stayingToday, arrivingToday, leavingToday, upcomingReservations } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    // Usar substring en lugar de split para evitar crash en Hermes
+    const todayStr = today.toISOString().substring(0, 10);
 
     const staying: Reservation[] = [];
     const arriving: Reservation[] = [];
@@ -68,8 +69,9 @@ export default function DashboardScreen() {
       const checkOutDate = new Date(checkOut);
       checkOutDate.setHours(0, 0, 0, 0);
 
-      const checkInStr = checkInDate.toISOString().split('T')[0];
-      const checkOutStr = checkOutDate.toISOString().split('T')[0];
+      // Usar substring en lugar de split para evitar crash en Hermes
+      const checkInStr = checkInDate.toISOString().substring(0, 10);
+      const checkOutStr = checkOutDate.toISOString().substring(0, 10);
 
       // Quién llega hoy
       if (checkInStr === todayStr) {

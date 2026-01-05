@@ -51,18 +51,63 @@ export default function MIRComunicacionesScreen() {
           isArray: Array.isArray(response.data),
           hasItems: !!response.data?.items,
           itemsLength: response.data?.items?.length || 0,
-          ok: response.data?.ok
+          ok: response.data?.ok,
+          dataKeys: response.data ? Object.keys(response.data) : []
         });
         
         // La API puede devolver array directo o objeto con items
-        const registrationsData = Array.isArray(response.data) 
-          ? response.data 
-          : (response.data?.items || []);
+        let registrationsData: any[] = [];
+        
+        if (Array.isArray(response.data)) {
+          registrationsData = response.data;
+          console.log('✅ Datos recibidos como array directo');
+        } else if (response.data?.items && Array.isArray(response.data.items)) {
+          registrationsData = response.data.items;
+          console.log('✅ Datos recibidos como objeto con items');
+        } else if (response.data?.ok && response.data?.items) {
+          registrationsData = response.data.items;
+          console.log('✅ Datos recibidos como objeto con ok:true e items');
+        } else {
+          console.warn('⚠️ Formato de respuesta no reconocido:', response.data);
+          registrationsData = [];
+        }
         
         console.log(`✅ ${registrationsData.length} registros obtenidos en app móvil`);
         
+        // Asegurar que los datos tengan la estructura correcta
+        const processedData = registrationsData.map((item: any) => {
+          // Si el item tiene data anidado, extraer la información del viajero
+          if (item.data && !item.viajero) {
+            const comunicacion = item.data?.comunicaciones?.[0];
+            const persona = comunicacion?.personas?.[0];
+            const contrato = comunicacion?.contrato;
+            
+            return {
+              ...item,
+              viajero: persona ? {
+                nombre: persona.nombre || '',
+                apellido1: persona.apellido1 || '',
+                apellido2: persona.apellido2 || '',
+                nacionalidad: persona.nacionalidad || '',
+                tipoDocumento: persona.tipoDocumento || '',
+                numeroDocumento: persona.numeroDocumento || ''
+              } : undefined,
+              contrato: contrato ? {
+                codigoEstablecimiento: item.data?.codigoEstablecimiento || contrato.codigoEstablecimiento || '',
+                referencia: contrato.referencia || '',
+                numHabitaciones: contrato.numHabitaciones || 1,
+                internet: contrato.internet || false,
+                tipoPago: contrato.pago?.tipoPago || ''
+              } : item.contrato
+            };
+          }
+          return item;
+        });
+        
+        console.log(`✅ ${processedData.length} registros procesados con estructura correcta`);
+        
         // Filtrar por búsqueda si existe
-        let filtered = registrationsData;
+        let filtered = processedData;
         if (searchTerm) {
           const searchLower = searchTerm.toLowerCase();
           filtered = registrationsData.filter((item: GuestRegistration) => {
@@ -83,12 +128,12 @@ export default function MIRComunicacionesScreen() {
         const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         
         const stats = {
-          total_submissions: registrationsData.length,
-          submissions_last_7_days: registrationsData.filter((item: GuestRegistration) => {
+          total_submissions: processedData.length,
+          submissions_last_7_days: processedData.filter((item: GuestRegistration) => {
             const created = new Date(item.created_at);
             return created >= last7Days;
           }).length,
-          submissions_last_30_days: registrationsData.filter((item: GuestRegistration) => {
+          submissions_last_30_days: processedData.filter((item: GuestRegistration) => {
             const created = new Date(item.created_at);
             return created >= last30Days;
           }).length,

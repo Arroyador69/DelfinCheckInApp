@@ -26,7 +26,8 @@
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       },
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "buildConfiguration": "Release"
       },
       "android": {
         "buildType": "app-bundle"
