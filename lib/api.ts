@@ -19,71 +19,110 @@ export const api: AxiosInstance = axios.create({
   },
 });
 
+// Función auxiliar para refrescar token de forma robusta
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const refreshToken = await SecureStore.getItemAsync('refreshToken');
+    if (!refreshToken) {
+      console.warn('⚠️ No hay refresh token disponible');
+      return null;
+    }
+
+    console.log('🔄 Refrescando access token...');
+    const response = await axios.post(`${API_URL}/api/auth/refresh`, {
+      refreshToken,
+    });
+
+    if (response.data.success && response.data.accessToken) {
+      const newToken = response.data.accessToken;
+      await SecureStore.setItemAsync('accessToken', newToken);
+      
+      // Actualizar sesión
+      const sessionStr = await SecureStore.getItemAsync('delfin.session.v1');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        session.accessToken = newToken;
+        await SecureStore.setItemAsync('delfin.session.v1', JSON.stringify(session));
+      }
+      
+      console.log('✅ Token refrescado exitosamente');
+      return newToken;
+    }
+    
+    return null;
+  } catch (error: any) {
+    console.error('❌ Error refrescando token:', error);
+    // Si el refresh falla, limpiar tokens
+    await SecureStore.deleteItemAsync('accessToken');
+    await SecureStore.deleteItemAsync('refreshToken');
+    await SecureStore.deleteItemAsync('delfin.session.v1');
+    return null;
+  }
+}
+
 // Interceptor para agregar token de autenticación
 api.interceptors.request.use(
   async (config) => {
     try {
-      const token = await SecureStore.getItemAsync('accessToken');
+      let token = await SecureStore.getItemAsync('accessToken');
+      let needsRefresh = false;
       
-      // Verificar si el token está expirado antes de usarlo
       if (token) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           const exp = payload.exp * 1000; // Convertir a milisegundos
           const now = Date.now();
+          const timeUntilExpiry = exp - now;
           
-          // Si el token expira en menos de 5 minutos, refrescarlo proactivamente
-          if (exp - now < 5 * 60 * 1000) {
-            console.log('⏰ Token próximo a expirar, refrescando proactivamente...');
-            const refreshToken = await SecureStore.getItemAsync('refreshToken');
-            if (refreshToken) {
-              try {
-                const refreshResponse = await axios.post(`${API_URL}/api/auth/refresh`, {
-                  refreshToken,
-                });
-                
-                if (refreshResponse.data.success && refreshResponse.data.accessToken) {
-                  const newToken = refreshResponse.data.accessToken;
-                  await SecureStore.setItemAsync('accessToken', newToken);
-                  
-                  // Actualizar sesión
-                  const sessionStr = await SecureStore.getItemAsync('delfin.session.v1');
-                  if (sessionStr) {
-                    const session = JSON.parse(sessionStr);
-                    session.accessToken = newToken;
-                    await SecureStore.setItemAsync('delfin.session.v1', JSON.stringify(session));
-                  }
-                  
-                  config.headers.Authorization = `Bearer ${newToken}`;
-                  console.log('✅ Token refrescado proactivamente');
-                  
-                  // Obtener tenantId del nuevo token
-                  const newPayload = JSON.parse(atob(newToken.split('.')[1]));
-                  if (newPayload.tenantId) {
-                    config.headers['x-tenant-id'] = newPayload.tenantId;
-                  }
-                  
-                  return config;
-                }
-              } catch (refreshError) {
-                console.warn('⚠️ Error en refresh proactivo, usando token actual:', refreshError);
-              }
+          // Si el token YA está expirado o expira en menos de 10 minutos, refrescarlo
+          if (timeUntilExpiry < 10 * 60 * 1000) {
+            if (timeUntilExpiry <= 0) {
+              console.log('⏰ Token EXPIRADO, refrescando inmediatamente...');
+            } else {
+              console.log(`⏰ Token próximo a expirar (${Math.round(timeUntilExpiry / 1000 / 60)} min), refrescando proactivamente...`);
+            }
+            needsRefresh = true;
+          } else {
+            // Token válido, usar directamente
+            config.headers.Authorization = `Bearer ${token}`;
+            
+            // Obtener tenantId del token
+            if (payload.tenantId) {
+              config.headers['x-tenant-id'] = payload.tenantId;
+              console.log('🏢 Tenant ID obtenido del JWT:', payload.tenantId);
             }
           }
-          
-          // Usar token actual
-          config.headers.Authorization = `Bearer ${token}`;
-          console.log('🔑 Token añadido a request:', config.url);
-          
-          // Obtener tenantId del token
-          if (payload.tenantId) {
-            config.headers['x-tenant-id'] = payload.tenantId;
-            console.log('🏢 Tenant ID obtenido del JWT:', payload.tenantId);
-          }
         } catch (jwtError) {
-          console.warn('⚠️ No se pudo decodificar JWT:', jwtError);
-          // Aún así usar el token, el servidor lo validará
+          console.warn('⚠️ No se pudo decodificar JWT, asumiendo expirado:', jwtError);
+          needsRefresh = true;
+        }
+      } else {
+        // No hay token, intentar refrescar desde refresh token
+        console.log('⚠️ No hay access token, intentando refrescar desde refresh token...');
+        needsRefresh = true;
+      }
+      
+      // Si necesita refresh, intentar refrescar
+      if (needsRefresh) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          token = newToken;
           config.headers.Authorization = `Bearer ${token}`;
+          
+          // Obtener tenantId del nuevo token
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.tenantId) {
+              config.headers['x-tenant-id'] = payload.tenantId;
+              console.log('🏢 Tenant ID obtenido del nuevo JWT:', payload.tenantId);
+            }
+          } catch {}
+        } else {
+          // No se pudo refrescar, el interceptor de response manejará el 401
+          console.warn('⚠️ No se pudo refrescar token, continuando con request (se manejará en response interceptor)');
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
         }
       }
       
@@ -115,63 +154,37 @@ api.interceptors.response.use(
     const originalRequest = error.config as any;
     
     // Si es 401 y no es un intento de refresh, intentar refrescar token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
       
-      console.log('🔄 Token expirado, intentando refrescar...');
+      // Evitar bucles infinitos: no refrescar si ya intentamos antes o si es el endpoint de refresh
+      if (originalRequest.url?.includes('/api/auth/refresh')) {
+        console.error('❌ Error en refresh endpoint, no reintentar');
+        return Promise.reject(error);
+      }
       
-      try {
-        const refreshToken = await SecureStore.getItemAsync('refreshToken');
-        if (!refreshToken) {
-          console.warn('⚠️ No hay refresh token disponible');
-          throw new Error('No refresh token');
-        }
+      console.log('🚨 401 recibido, intentando refrescar token y reintentar...');
+      
+      const newToken = await refreshAccessToken();
+      
+      if (newToken) {
+        // Actualizar header y reintentar request
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         
-        console.log('🔄 Refrescando token...');
-        const response = await axios.post(`${API_URL}/api/auth/refresh`, {
-          refreshToken,
-        });
+        // También actualizar tenant_id si está en el token
+        try {
+          const payload = JSON.parse(atob(newToken.split('.')[1]));
+          if (payload.tenantId) {
+            originalRequest.headers['x-tenant-id'] = payload.tenantId;
+          }
+        } catch {}
         
-        if (response.data.success && response.data.accessToken) {
-          const newAccessToken = response.data.accessToken;
-          console.log('✅ Token refrescado correctamente');
-          
-          // Guardar nuevo token
-          await SecureStore.setItemAsync('accessToken', newAccessToken);
-          
-          // Actualizar sesión
-          const sessionStr = await SecureStore.getItemAsync('delfin.session.v1');
-          if (sessionStr) {
-            const session = JSON.parse(sessionStr);
-            session.accessToken = newAccessToken;
-            await SecureStore.setItemAsync('delfin.session.v1', JSON.stringify(session));
-          }
-          
-          // Actualizar header y reintentar request
-          if (originalRequest) {
-            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-            
-            // También actualizar tenant_id si está en el token
-            try {
-              const payload = JSON.parse(atob(newAccessToken.split('.')[1]));
-              if (payload.tenantId) {
-                originalRequest.headers['x-tenant-id'] = payload.tenantId;
-              }
-            } catch {}
-            
-            console.log('🔄 Reintentando request original...');
-            return api.request(originalRequest);
-          }
-        } else {
-          throw new Error('Invalid refresh response');
-        }
-      } catch (refreshError) {
-        console.error('❌ Error refrescando token:', refreshError);
-        // Refresh falló, limpiar sesión
-        await SecureStore.deleteItemAsync('accessToken');
-        await SecureStore.deleteItemAsync('refreshToken');
-        await SecureStore.deleteItemAsync('delfin.session.v1');
-        // El error se propagará y el componente manejará el logout
+        console.log('✅ Token refrescado, reintentando request original:', originalRequest.url);
+        return api.request(originalRequest);
+      } else {
+        console.error('❌ No se pudo refrescar token, limpiando sesión');
+        // El refresh falló, el error se propagará y el componente manejará el logout
+        // No limpiar aquí porque refreshAccessToken ya lo hace
       }
     }
     

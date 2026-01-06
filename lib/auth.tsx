@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔐 Cargando sesión...');
       const sessionStr = await SecureStore.getItemAsync(SESSION_KEY);
-      const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      let accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
       const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
 
       console.log('📦 Datos encontrados:', {
@@ -63,16 +63,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         tieneRefreshToken: !!refreshToken,
       });
 
+      // Verificar si el access token está expirado o próximo a expirar
+      if (accessToken) {
+        try {
+          const payload = JSON.parse(atob(accessToken.split('.')[1]));
+          const exp = payload.exp * 1000; // Convertir a milisegundos
+          const now = Date.now();
+          const timeUntilExpiry = exp - now;
+          
+          // Si está expirado o expira en menos de 10 minutos, refrescar
+          if (timeUntilExpiry < 10 * 60 * 1000) {
+            console.log(`⏰ Token ${timeUntilExpiry <= 0 ? 'EXPIRADO' : 'próximo a expirar'} al iniciar, refrescando...`);
+            const refreshed = await refreshSession();
+            if (refreshed) {
+              accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+            }
+          }
+        } catch (jwtError) {
+          console.warn('⚠️ No se pudo verificar expiración del token:', jwtError);
+          // Si no se puede decodificar, intentar refrescar
+          if (refreshToken) {
+            console.log('🔄 Token inválido, intentando refrescar...');
+            await refreshSession();
+            accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+          }
+        }
+      } else if (refreshToken) {
+        console.log('🔄 No hay access token, intentando refrescar desde refresh token...');
+        await refreshSession();
+        accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+      }
+
       if (sessionStr && accessToken) {
         const parsedSession = JSON.parse(sessionStr);
+        // Actualizar access token en la sesión si fue refrescado
+        parsedSession.accessToken = accessToken;
         setSession(parsedSession);
         console.log('✅ Sesión cargada correctamente');
-      } else if (refreshToken) {
-        console.log('🔄 Intentando refrescar token...');
-        // Intentar refrescar si hay refresh token pero no access token
-        await refreshSession();
       } else {
-        console.log('ℹ️ No hay sesión guardada');
+        console.log('ℹ️ No hay sesión válida guardada');
       }
     } catch (error) {
       console.error('❌ Error cargando sesión:', error);
