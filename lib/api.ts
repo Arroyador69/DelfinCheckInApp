@@ -51,7 +51,9 @@ async function refreshAccessToken(): Promise<string | null> {
     
     return null;
   } catch (error: any) {
-    console.error('❌ Error refrescando token:', error);
+    // Esto puede pasar si el refresh token está caducado o es inválido.
+    // No es un "error fatal" para el usuario: simplemente se fuerza re-login.
+    console.warn('⚠️ No se pudo refrescar token, limpiando sesión');
     // Si el refresh falla, limpiar tokens
     await SecureStore.deleteItemAsync('accessToken');
     await SecureStore.deleteItemAsync('refreshToken');
@@ -138,7 +140,7 @@ api.interceptors.request.use(
         }
       }
     } catch (error) {
-      console.error('❌ Error obteniendo token o tenant_id:', error);
+      console.warn('⚠️ Error obteniendo token o tenant_id:', error);
     }
     return config;
   },
@@ -159,7 +161,7 @@ api.interceptors.response.use(
       
       // Evitar bucles infinitos: no refrescar si ya intentamos antes o si es el endpoint de refresh
       if (originalRequest.url?.includes('/api/auth/refresh')) {
-        console.error('❌ Error en refresh endpoint, no reintentar');
+        console.warn('⚠️ Error en refresh endpoint, no reintentar');
         return Promise.reject(error);
       }
       
@@ -182,7 +184,8 @@ api.interceptors.response.use(
         console.log('✅ Token refrescado, reintentando request original:', originalRequest.url);
         return api.request(originalRequest);
       } else {
-        console.error('❌ No se pudo refrescar token, limpiando sesión');
+        // refreshAccessToken ya limpia sesión; aquí solo evitamos ruido en la UI.
+        console.warn('⚠️ No se pudo refrescar token (se requiere re-login)');
         // El refresh falló, el error se propagará y el componente manejará el logout
         // No limpiar aquí porque refreshAccessToken ya lo hace
       }

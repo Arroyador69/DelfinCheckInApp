@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth';
 import { useRouter } from 'expo-router';
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signOut } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -75,6 +75,17 @@ export default function LoginScreen() {
             <Text style={styles.buttonText}>Iniciar Sesión</Text>
           )}
         </Pressable>
+
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={async () => {
+            await signOut();
+            Alert.alert('Listo', 'Sesión limpiada. Ya puedes iniciar sesión de nuevo.');
+          }}
+          disabled={loading}
+        >
+          <Text style={styles.secondaryButtonText}>Limpiar sesión</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -133,6 +144,20 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  secondaryButtonText: {
+    color: '#6b7280',
+    fontSize: 14,
     fontWeight: '600',
   },
 });

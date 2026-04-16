@@ -11,6 +11,7 @@ import {
   FileText, 
   Settings, 
   CreditCard,
+  Receipt,
   X 
 } from 'lucide-react-native';
 
@@ -24,7 +25,8 @@ const menuItems: MenuItem[] = [
   { name: 'Dashboard', href: '/(app)', icon: Home },
   { name: 'Reservas', href: '/(app)/reservations', icon: Calendar },
   { name: 'Calendario', href: '/(app)/calendar', icon: Calendar },
-  { name: 'Comunicaciones MIR', href: '/(app)/mir-comunicaciones', icon: FileText },
+  { name: 'Facturas/Recibos', href: '/(app)/invoices', icon: Receipt },
+  { name: 'Registros de huéspedes', href: '/(app)/mir-comunicaciones', icon: FileText },
   { name: 'Enlaces de Pago', href: '/(app)/payment-links', icon: CreditCard },
   { name: 'Configuración', href: '/(app)/settings', icon: Settings },
 ];

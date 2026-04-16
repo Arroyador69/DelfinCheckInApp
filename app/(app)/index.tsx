@@ -2,35 +2,27 @@
 // DASHBOARD - Pantalla principal
 // =====================================================
 
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useState, useMemo } from 'react';
-import { Users, ArrowDownCircle, ArrowUpCircle, Calendar } from 'lucide-react-native';
+import { Users, ArrowDownCircle, ArrowUpCircle, Calendar, BellRing } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
-interface Reservation {
-  id: number;
-  reservation_code?: string;
-  guest_name: string;
-  guest_email?: string;
-  guest_phone?: string;
-  property_name?: string;
-  room_id?: string;
-  check_in_date?: string;
-  check_in?: string;
-  check_out_date?: string;
-  check_out?: string;
-  reservation_status?: string;
-  status?: string;
-  total_amount?: number;
-  total_price?: number;
-}
+import {
+  PendingReservationItem,
+  Reservation,
+  getReservationCheckIn,
+  getReservationCheckOut,
+  getReservationPrice,
+} from '@/lib/reservations';
 
 export default function DashboardScreen() {
   const { session } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Obtener reservas normales
   const { data: reservations, isLoading } = useQuery({
@@ -42,6 +34,17 @@ export default function DashboardScreen() {
   });
 
   const allReservations = (reservations || []) as Reservation[];
+
+  const { data: pendingData } = useQuery({
+    queryKey: ['pending-reservations-review'],
+    queryFn: async () => {
+      const response = await api.get('/api/tenant/pending-reservations-review');
+      return response.data as { count?: number; items?: PendingReservationItem[] };
+    },
+  });
+
+  const pendingCount = typeof pendingData?.count === 'number' ? pendingData.count : 0;
+  const pendingItems = Array.isArray(pendingData?.items) ? pendingData.items : [];
 
   // Filtrar reservas por estado
   const { stayingToday, arrivingToday, leavingToday, upcomingReservations } = useMemo(() => {
@@ -59,8 +62,8 @@ export default function DashboardScreen() {
       const status = r.reservation_status || r.status || '';
       if (status !== 'confirmed' && status !== 'completed') return;
 
-      const checkIn = r.check_in_date || r.check_in;
-      const checkOut = r.check_out_date || r.check_out;
+      const checkIn = getReservationCheckIn(r);
+      const checkOut = getReservationCheckOut(r);
 
       if (!checkIn || !checkOut) return;
 
@@ -123,10 +126,9 @@ export default function DashboardScreen() {
   };
 
   const ReservationCard = ({ reservation, showDates = true }: { reservation: Reservation; showDates?: boolean }) => {
-    const checkIn = reservation.check_in_date || reservation.check_in;
-    const checkOut = reservation.check_out_date || reservation.check_out;
-    const priceValue = reservation.total_amount ?? reservation.total_price ?? null;
-    const price = priceValue !== null && priceValue !== undefined ? parseFloat(String(priceValue)) : 0;
+    const checkIn = getReservationCheckIn(reservation);
+    const checkOut = getReservationCheckOut(reservation);
+    const price = getReservationPrice(reservation);
 
     return (
       <View style={styles.reservationCard}>
@@ -154,6 +156,59 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <Text style={styles.greeting}>Hola, {session?.user.fullName || session?.user.email}</Text>
         <Text style={styles.tenantName}>{session?.user.tenant.name}</Text>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <BellRing size={20} color="#b45309" />
+            <Text style={styles.cardTitle}>Pendientes de revisión</Text>
+          </View>
+          <View style={[styles.badge, styles.badgePending]}>
+            <Text style={styles.badgeTextPending}>{pendingCount}</Text>
+          </View>
+        </View>
+        {pendingCount === 0 ? (
+          <Text style={styles.emptyText}>No hay reservas pendientes de completar</Text>
+        ) : (
+          <>
+            {pendingItems.slice(0, 3).map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/reservations',
+                    params: { filter: 'pending', reservationId: item.id },
+                  })
+                }
+                style={styles.pendingItem}
+              >
+                <Text style={styles.pendingGuest}>{item.guest_name}</Text>
+                <Text style={styles.pendingMeta}>
+                  Check-in:{' '}
+                  {item.check_in
+                    ? new Date(item.check_in).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : 'Sin fecha'}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable
+              style={styles.pendingButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/(app)/reservations',
+                  params: { filter: 'pending' },
+                })
+              }
+            >
+              <Text style={styles.pendingButtonText}>Ver pendientes</Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
       {/* Quién hay hoy */}
@@ -307,10 +362,45 @@ const styles = StyleSheet.create({
   badgeWarning: {
     backgroundColor: '#fef3c7',
   },
+  badgePending: {
+    backgroundColor: '#fef3c7',
+  },
   badgeText: {
     fontSize: 14,
     fontWeight: 'bold',
     color: '#2563eb',
+  },
+  badgeTextPending: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#b45309',
+  },
+  pendingItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  pendingGuest: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  pendingMeta: {
+    fontSize: 13,
+    color: '#6b7280',
+  },
+  pendingButton: {
+    marginTop: 12,
+    backgroundColor: '#f59e0b20',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  pendingButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#b45309',
   },
   reservationCard: {
     padding: 12,

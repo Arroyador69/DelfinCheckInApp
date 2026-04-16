@@ -5,26 +5,18 @@
 import { View, Text, FlatList, StyleSheet, RefreshControl, TextInput, Pressable, Modal, ScrollView, Alert } from 'react-native';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { useState } from 'react';
-import { Search, Plus, X } from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { Search, Plus, X, CheckCircle2, BellRing, Pencil, Trash2 } from 'lucide-react-native';
 
-interface Reservation {
-  id: number;
-  reservation_code?: string;
-  guest_name: string;
-  guest_email?: string;
-  guest_phone?: string;
-  property_name?: string;
-  room_id?: string;
-  check_in_date?: string;
-  check_in?: string;
-  check_out_date?: string;
-  check_out?: string;
-  reservation_status?: string;
-  status?: string;
-  total_amount?: number;
-  total_price?: number;
-}
+import {
+  PendingReservationItem,
+  Reservation,
+  getReservationCheckIn,
+  getReservationCheckOut,
+  getReservationPrice,
+  getReservationStatus,
+} from '@/lib/reservations';
 
 interface Room {
   id: number;
@@ -32,10 +24,14 @@ interface Room {
 }
 
 export default function ReservationsScreen() {
+  const params = useLocalSearchParams<{ filter?: string; reservationId?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [editingReservationId, setEditingReservationId] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'pending'>(
+    params.filter === 'pending' ? 'pending' : 'all'
+  );
   const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
@@ -73,8 +69,52 @@ export default function ReservationsScreen() {
 
   const reservations = (normalReservations || []) as Reservation[];
 
+  const { data: pendingData } = useQuery({
+    queryKey: ['pending-reservations-review'],
+    queryFn: async () => {
+      const response = await api.get('/api/tenant/pending-reservations-review');
+      return response.data as { count?: number; items?: PendingReservationItem[] };
+    },
+  });
+
+  const pendingCount = typeof pendingData?.count === 'number' ? pendingData.count : 0;
+  const pendingIds = useMemo(
+    () => new Set((pendingData?.items || []).map((item) => item.id)),
+    [pendingData]
+  );
+
+  useEffect(() => {
+    setSelectedFilter(params.filter === 'pending' ? 'pending' : 'all');
+  }, [params.filter]);
+
+  const reviewMutation = useMutation({
+    mutationFn: async (reservationId: string) => {
+      const response = await api.post('/api/reservations/mark-reviewed', {
+        reservationId,
+      });
+      return response.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['reservations'] }),
+        queryClient.invalidateQueries({ queryKey: ['pending-reservations-review'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      Alert.alert(
+        'Error',
+        error.response?.data?.error || 'No se pudo marcar la reserva como revisada'
+      );
+    },
+  });
+
   // Filtrar reservas por búsqueda
   const filteredReservations = reservations.filter((r) => {
+    const matchesPending =
+      selectedFilter === 'all' ? true : Boolean(r.needs_review || pendingIds.has(String(r.id)));
+
+    if (!matchesPending) return false;
+
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -91,6 +131,7 @@ export default function ReservationsScreen() {
     await Promise.all([
       queryClient.refetchQueries({ queryKey: ['reservations'] }),
       queryClient.refetchQueries({ queryKey: ['rooms'] }),
+      queryClient.refetchQueries({ queryKey: ['pending-reservations-review'] }),
     ]);
     setRefreshing(false);
   };
@@ -122,15 +163,66 @@ export default function ReservationsScreen() {
     },
   });
 
+  const updateReservation = useMutation({
+    mutationFn: async (data: typeof formData & { id: string }) => {
+      const response = await api.put('/api/reservations', {
+        id: data.id,
+        room_id: data.room_id,
+        guest_name: data.guest_name,
+        guest_email: data.guest_email || null,
+        guest_phone: data.guest_phone || null,
+        guest_count: parseInt(data.guest_count) || 1,
+        check_in: data.check_in,
+        check_out: data.check_out,
+        total_price: parseFloat(data.total_price) || 0,
+        guest_paid: parseFloat(data.total_price) || 0,
+        status: data.status,
+        channel: data.channel,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-reservations-review'] });
+      setShowCreateModal(false);
+      setEditingReservationId(null);
+      resetForm();
+      Alert.alert('Éxito', 'Reserva actualizada correctamente');
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.response?.data?.error || 'Error al actualizar la reserva');
+    },
+  });
+
+  const deleteReservation = useMutation({
+    mutationFn: async (reservationId: string) => {
+      const response = await api.delete(`/api/reservations/${reservationId}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-reservations-review'] });
+      Alert.alert('Éxito', 'Reserva eliminada correctamente');
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.response?.data?.error || 'Error al eliminar la reserva');
+    },
+  });
+
   const handleCreate = () => {
     if (!formData.room_id || !formData.guest_name || !formData.check_in || !formData.check_out) {
       Alert.alert('Error', 'Por favor, completa todos los campos obligatorios');
       return;
     }
-    createReservation.mutate(formData);
+    if (editingReservationId) {
+      updateReservation.mutate({ ...formData, id: editingReservationId });
+    } else {
+      createReservation.mutate(formData);
+    }
   };
 
   const resetForm = () => {
+    setEditingReservationId(null);
     setFormData({
       room_id: '',
       guest_name: '',
@@ -143,6 +235,23 @@ export default function ReservationsScreen() {
       status: 'confirmed',
       channel: 'manual',
     });
+  };
+
+  const openEditModal = (reservation: Reservation) => {
+    setEditingReservationId(String(reservation.id));
+    setFormData({
+      room_id: String(reservation.room_id || ''),
+      guest_name: reservation.guest_name || '',
+      guest_email: reservation.guest_email || '',
+      guest_phone: reservation.guest_phone || '',
+      guest_count: String(reservation.guest_count || 1),
+      check_in: (getReservationCheckIn(reservation) || '').split('T')[0],
+      check_out: (getReservationCheckOut(reservation) || '').split('T')[0],
+      total_price: String(getReservationPrice(reservation) || ''),
+      status: (getReservationStatus(reservation) as 'confirmed' | 'cancelled' | 'completed') || 'confirmed',
+      channel: ((reservation.channel as 'airbnb' | 'booking' | 'manual') || 'manual'),
+    });
+    setShowCreateModal(true);
   };
 
   const formatDate = (dateStr: string) => {
@@ -164,6 +273,49 @@ export default function ReservationsScreen() {
       default:
         return '#6b7280';
     }
+  };
+
+  const handleMarkReviewed = (reservationId: string) => {
+    Alert.alert(
+      'Marcar como revisada',
+      'Esto quitará la reserva de pendientes y confirmará que ya la has revisado.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: () => reviewMutation.mutate(reservationId),
+        },
+      ]
+    );
+  };
+
+  const handleDeleteReservation = (reservation: Reservation) => {
+    const reservationId = String(reservation.id);
+    Alert.alert(
+      'Eliminar reserva',
+      `Vas a eliminar la reserva de ${reservation.guest_name}. Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmación final',
+              '¿Seguro que quieres eliminar definitivamente esta reserva?',
+              [
+                { text: 'No', style: 'cancel' },
+                {
+                  text: 'Sí, eliminar',
+                  style: 'destructive',
+                  onPress: () => deleteReservation.mutate(reservationId),
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -189,19 +341,53 @@ export default function ReservationsScreen() {
         </Pressable>
       </View>
 
+      <View style={styles.filtersRow}>
+        <Pressable
+          style={[styles.filterChip, selectedFilter === 'all' && styles.filterChipActive]}
+          onPress={() => setSelectedFilter('all')}
+        >
+          <Text
+            style={[styles.filterChipText, selectedFilter === 'all' && styles.filterChipTextActive]}
+          >
+            Todas
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.filterChip, selectedFilter === 'pending' && styles.filterChipPendingActive]}
+          onPress={() => setSelectedFilter('pending')}
+        >
+          <BellRing size={16} color={selectedFilter === 'pending' ? '#b45309' : '#6b7280'} />
+          <Text
+            style={[
+              styles.filterChipText,
+              selectedFilter === 'pending' && styles.filterChipTextPendingActive,
+            ]}
+          >
+            Pendientes ({pendingCount})
+          </Text>
+        </Pressable>
+      </View>
+
       {/* Lista de reservas */}
       <FlatList
         data={filteredReservations}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => {
-          const status = item.reservation_status || item.status || 'unknown';
-          const checkIn = item.check_in_date || item.check_in;
-          const checkOut = item.check_out_date || item.check_out;
-          const priceValue = item.total_amount ?? item.total_price ?? null;
-          const price = priceValue !== null && priceValue !== undefined ? parseFloat(String(priceValue)) : 0;
+          const status = getReservationStatus(item);
+          const checkIn = getReservationCheckIn(item);
+          const checkOut = getReservationCheckOut(item);
+          const price = getReservationPrice(item);
+          const needsReview = Boolean(item.needs_review || pendingIds.has(String(item.id)));
+          const isHighlighted = params.reservationId === String(item.id);
 
           return (
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                needsReview && styles.cardPending,
+                isHighlighted && styles.cardHighlighted,
+              ]}
+            >
               {/* Header: Nombre y precio */}
               <View style={styles.cardHeader}>
                 <View style={styles.namePriceContainer}>
@@ -231,6 +417,27 @@ export default function ReservationsScreen() {
                 </View>
               </View>
 
+              {needsReview && (
+                <View style={styles.pendingBanner}>
+                  <View style={styles.pendingBannerTextWrap}>
+                    <Text style={styles.pendingBannerTitle}>Pendiente de revisión</Text>
+                    <Text style={styles.pendingBannerText}>
+                      Reserva creada automáticamente desde el formulario de check-in.
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={styles.pendingActionButton}
+                    onPress={() => handleMarkReviewed(String(item.id))}
+                    disabled={reviewMutation.isPending}
+                  >
+                    <CheckCircle2 size={16} color="white" />
+                    <Text style={styles.pendingActionButtonText}>
+                      {reviewMutation.isPending ? 'Guardando...' : 'Revisada'}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+
               {/* Información adicional */}
               <View style={styles.infoContainer}>
                 {item.guest_email && (
@@ -252,6 +459,25 @@ export default function ReservationsScreen() {
                     🔖 {item.reservation_code}
                   </Text>
                 )}
+              </View>
+              <View style={styles.actionsRow}>
+                <Pressable
+                  style={[styles.actionButton, styles.editButton]}
+                  onPress={() => openEditModal(item)}
+                >
+                  <Pencil size={16} color="#2563eb" />
+                  <Text style={styles.editButtonText}>Editar</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.actionButton, styles.deleteActionButton]}
+                  onPress={() => handleDeleteReservation(item)}
+                  disabled={deleteReservation.isPending}
+                >
+                  <Trash2 size={16} color="#dc2626" />
+                  <Text style={styles.deleteButtonText}>
+                    {deleteReservation.isPending ? 'Eliminando...' : 'Eliminar'}
+                  </Text>
+                </Pressable>
               </View>
             </View>
           );
@@ -277,8 +503,13 @@ export default function ReservationsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nueva Reserva</Text>
-              <Pressable onPress={() => setShowCreateModal(false)}>
+              <Text style={styles.modalTitle}>{editingReservationId ? 'Editar Reserva' : 'Nueva Reserva'}</Text>
+              <Pressable
+                onPress={() => {
+                  setShowCreateModal(false);
+                  resetForm();
+                }}
+              >
                 <X size={24} color="#6b7280" />
               </Pressable>
             </View>
@@ -372,17 +603,26 @@ export default function ReservationsScreen() {
             <View style={styles.modalFooter}>
               <Pressable
                 style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowCreateModal(false)}
+                onPress={() => {
+                  setShowCreateModal(false);
+                  resetForm();
+                }}
               >
                 <Text style={styles.modalButtonTextCancel}>Cancelar</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalButton, styles.modalButtonCreate]}
                 onPress={handleCreate}
-                disabled={creating}
+                disabled={createReservation.isPending || updateReservation.isPending}
               >
                 <Text style={styles.modalButtonTextCreate}>
-                  {creating ? 'Creando...' : 'Crear'}
+                  {editingReservationId
+                    ? updateReservation.isPending
+                      ? 'Guardando...'
+                      : 'Guardar cambios'
+                    : createReservation.isPending
+                      ? 'Creando...'
+                      : 'Crear'}
                 </Text>
               </Pressable>
             </View>
@@ -435,6 +675,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  filtersRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  filterChipActive: {
+    borderColor: '#2563eb',
+    backgroundColor: '#eff6ff',
+  },
+  filterChipPendingActive: {
+    borderColor: '#f59e0b',
+    backgroundColor: '#fffbeb',
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  filterChipTextActive: {
+    color: '#2563eb',
+  },
+  filterChipTextPendingActive: {
+    color: '#b45309',
+  },
   listContent: {
     padding: 16,
   },
@@ -448,6 +724,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  cardPending: {
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+  },
+  cardHighlighted: {
+    borderWidth: 2,
+    borderColor: '#2563eb',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -478,8 +762,76 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  pendingBanner: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    gap: 10,
+  },
+  pendingBannerTextWrap: {
+    gap: 2,
+  },
+  pendingBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  pendingBannerText: {
+    fontSize: 13,
+    color: '#92400e',
+  },
+  pendingActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#d97706',
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  pendingActionButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   infoContainer: {
     gap: 6,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  editButton: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+  },
+  deleteActionButton: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  editButtonText: {
+    color: '#2563eb',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  deleteButtonText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '700',
   },
   infoText: {
     fontSize: 14,

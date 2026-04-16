@@ -138,16 +138,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error: any) {
-      console.error('❌ Error en login:', error);
-      console.error('📡 Detalles del error:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        url: error.config?.url,
-        baseURL: error.config?.baseURL,
-        fullUrl: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A',
-        data: error.response?.data,
-      });
+      // 401 es normal cuando el usuario se equivoca: evitar "pantalla roja" por console.error.
+      const status = error?.response?.status;
+      if (status === 401) {
+        console.warn('⚠️ Login rechazado (401): credenciales inválidas');
+      } else {
+        console.warn('⚠️ Error en login:', {
+          message: error?.message,
+          status,
+          url: error?.config?.url,
+          baseURL: error?.config?.baseURL,
+          data: error?.response?.data,
+        });
+      }
       return false;
     }
   }

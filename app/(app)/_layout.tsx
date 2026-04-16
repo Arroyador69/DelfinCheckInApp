@@ -9,6 +9,7 @@ import { Text, Pressable, View } from 'react-native';
 import { useState } from 'react';
 import DrawerMenu from '@/components/DrawerMenu';
 import { Menu } from 'lucide-react-native';
+import PendingReservationsBell from '@/components/PendingReservationsBell';
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
@@ -38,6 +39,7 @@ export default function AppLayout() {
               <Menu size={24} color="#1f2937" />
             </Pressable>
           ),
+          headerRight: () => <PendingReservationsBell />,
         }}
       >
         <Tabs.Screen
@@ -77,14 +79,14 @@ export default function AppLayout() {
           name="invoices"
           options={{
             href: null, // Ocultar del tab bar
-            title: 'Facturación',
+            title: 'Facturas/Recibos',
           }}
         />
         <Tabs.Screen
           name="mir-comunicaciones"
           options={{
             href: null,
-            title: 'Comunicaciones MIR',
+            title: 'Registros huéspedes',
           }}
         />
         <Tabs.Screen
