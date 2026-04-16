@@ -5,10 +5,11 @@
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/lib/auth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter, useSegments } from 'expo-router';
 import { LogBox } from 'react-native';
+import { hydrateAppLocale, useLocaleListener } from '@/lib/i18n';
 
 // Ignorar warnings específicos si es necesario
 LogBox.ignoreLogs([
@@ -56,6 +57,15 @@ function NavigationHandler() {
   return null;
 }
 
+function LocalizedStack() {
+  const [, setBootTick] = useState(0);
+  useLocaleListener();
+  useEffect(() => {
+    hydrateAppLocale().finally(() => setBootTick((x) => x + 1));
+  }, []);
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
 export default function RootLayout() {
   // Manejo de errores global
   useEffect(() => {
@@ -79,7 +89,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <NavigationHandler />
-        <Stack screenOptions={{ headerShown: false }} />
+        <LocalizedStack />
       </AuthProvider>
     </QueryClientProvider>
   );

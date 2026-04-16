@@ -195,6 +195,50 @@ api.interceptors.response.use(
   }
 );
 
+/** Cabeceras Bearer + tenant para descargas fuera de axios (p. ej. FileSystem.downloadAsync). */
+export async function getAuthorizedDownloadHeaders(): Promise<Record<string, string>> {
+  let token = await SecureStore.getItemAsync('accessToken');
+  if (!token) return {};
+
+  let needsRefresh = false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const exp = payload.exp * 1000;
+    if (exp - Date.now() < 10 * 60 * 1000) {
+      needsRefresh = true;
+    }
+  } catch {
+    needsRefresh = true;
+  }
+
+  if (needsRefresh) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) token = refreshed;
+  }
+
+  if (!token) return {};
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    if (payload.tenantId) {
+      headers['x-tenant-id'] = payload.tenantId;
+    }
+    if (!headers['x-tenant-id']) {
+      const sessionStr = await SecureStore.getItemAsync('delfin.session.v1');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        if (session.tenant_id) {
+          headers['x-tenant-id'] = session.tenant_id;
+        }
+      }
+    }
+    return headers;
+  } catch {
+    return { Authorization: `Bearer ${token}` };
+  }
+}
+
 // Tipos para respuestas de API
 export interface ApiResponse<T> {
   success: boolean;

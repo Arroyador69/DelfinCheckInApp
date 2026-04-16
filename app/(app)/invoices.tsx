@@ -13,11 +13,14 @@ import {
   FlatList,
   RefreshControl,
   Alert,
+  Modal,
+  Platform,
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Plus, Share2, Trash2 } from 'lucide-react-native';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { Download, Plus, Share2 } from 'lucide-react-native';
 
-import { api } from '@/lib/api';
+import { api, getAuthorizedDownloadHeaders } from '@/lib/api';
 import { downloadToCache, shareFile } from '@/lib/files';
 import { getLocaleTag, t } from '@/lib/i18n';
 
@@ -68,10 +71,27 @@ function formatDate(value: string) {
   }
 }
 
+function parseYmd(value: string): Date {
+  if (!value?.trim()) return new Date();
+  const [y, m, d] = value.split('-').map((x) => parseInt(x, 10));
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+}
+
+function toYmd(d: Date): string {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
+type ReciboDateField = 'fecha_pago' | 'fecha_estancia_desde' | 'fecha_estancia_hasta';
+
 export default function InvoicesScreen() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('facturas');
   const [refreshing, setRefreshing] = useState(false);
+  const [iosDateModal, setIosDateModal] = useState<{ field: ReciboDateField; date: Date } | null>(null);
 
   // Facturas form
   const [facturaForm, setFacturaForm] = useState({
@@ -139,6 +159,34 @@ export default function InvoicesScreen() {
     ]);
     setRefreshing(false);
   };
+
+  function setReciboDateField(field: ReciboDateField, ymd: string) {
+    setReciboForm((p) => ({ ...p, [field]: ymd }));
+  }
+
+  function openReciboDatePicker(field: ReciboDateField) {
+    const current = reciboForm[field];
+    const value = parseYmd(current);
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value,
+        mode: 'date',
+        onChange: (event, date) => {
+          if (event.type === 'set' && date) {
+            setReciboDateField(field, toYmd(date));
+          }
+        },
+      });
+    } else {
+      setIosDateModal({ field, date: value });
+    }
+  }
+
+  function confirmIosReciboDate() {
+    if (!iosDateModal) return;
+    setReciboDateField(iosDateModal.field, toYmd(iosDateModal.date));
+    setIosDateModal(null);
+  }
 
   const crearFactura = useMutation({
     mutationFn: async () => {
@@ -249,9 +297,11 @@ export default function InvoicesScreen() {
   const descargarYCompartirFactura = async (factura: Factura, share: boolean) => {
     try {
       const url = `${api.defaults.baseURL}/api/facturas/${factura.id}/pdf`;
+      const headers = await getAuthorizedDownloadHeaders();
       const uri = await downloadToCache({
         url,
         filename: `factura_${factura.numero_factura}.pdf`,
+        headers,
       });
       if (share) {
         await shareFile(uri, 'application/pdf');
@@ -266,9 +316,11 @@ export default function InvoicesScreen() {
   const descargarYCompartirRecibo = async (recibo: Recibo, share: boolean) => {
     try {
       const url = `${api.defaults.baseURL}/api/recibos/${recibo.id}/pdf`;
+      const headers = await getAuthorizedDownloadHeaders();
       const uri = await downloadToCache({
         url,
         filename: `recibo_${recibo.numero_recibo}.pdf`,
+        headers,
       });
       if (share) {
         await shareFile(uri, 'application/pdf');
@@ -444,20 +496,54 @@ export default function InvoicesScreen() {
                 value={reciboForm.importe_total}
                 onChangeText={(t) => setReciboForm((p) => ({ ...p, importe_total: t }))}
               />
-              <View style={styles.row}>
-                <TextInput
-                  style={[styles.input, styles.flex]}
-                  placeholder={t('facturas.receiptPaymentDateLabel')}
-                  value={reciboForm.fecha_pago}
-                  onChangeText={(t) => setReciboForm((p) => ({ ...p, fecha_pago: t }))}
-                />
-                <TextInput
-                  style={[styles.input, styles.flex]}
-                  placeholder={t('facturas.paymentMethod')}
-                  value={reciboForm.forma_pago}
-                  onChangeText={(t) => setReciboForm((p) => ({ ...p, forma_pago: t }))}
-                />
+              <Text style={styles.fieldLabel}>{t('facturas.receiptPaymentDateLabel')}</Text>
+              <View style={styles.dateRow}>
+                <Pressable style={[styles.input, styles.datePressable]} onPress={() => openReciboDatePicker('fecha_pago')}>
+                  <Text style={reciboForm.fecha_pago ? styles.dateText : styles.datePlaceholder}>
+                    {reciboForm.fecha_pago || t('facturas.pickDate')}
+                  </Text>
+                </Pressable>
+                {reciboForm.fecha_pago ? (
+                  <Pressable style={styles.clearDateBtn} onPress={() => setReciboDateField('fecha_pago', '')}>
+                    <Text style={styles.clearDateBtnText}>{t('facturas.clearDate')}</Text>
+                  </Pressable>
+                ) : null}
               </View>
+
+              <Text style={styles.fieldLabel}>{t('facturas.receiptStayFromLabel')}</Text>
+              <View style={styles.dateRow}>
+                <Pressable style={[styles.input, styles.datePressable]} onPress={() => openReciboDatePicker('fecha_estancia_desde')}>
+                  <Text style={reciboForm.fecha_estancia_desde ? styles.dateText : styles.datePlaceholder}>
+                    {reciboForm.fecha_estancia_desde || t('facturas.pickDate')}
+                  </Text>
+                </Pressable>
+                {reciboForm.fecha_estancia_desde ? (
+                  <Pressable style={styles.clearDateBtn} onPress={() => setReciboDateField('fecha_estancia_desde', '')}>
+                    <Text style={styles.clearDateBtnText}>{t('facturas.clearDate')}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <Text style={styles.fieldLabel}>{t('facturas.receiptStayToLabel')}</Text>
+              <View style={styles.dateRow}>
+                <Pressable style={[styles.input, styles.datePressable]} onPress={() => openReciboDatePicker('fecha_estancia_hasta')}>
+                  <Text style={reciboForm.fecha_estancia_hasta ? styles.dateText : styles.datePlaceholder}>
+                    {reciboForm.fecha_estancia_hasta || t('facturas.pickDate')}
+                  </Text>
+                </Pressable>
+                {reciboForm.fecha_estancia_hasta ? (
+                  <Pressable style={styles.clearDateBtn} onPress={() => setReciboDateField('fecha_estancia_hasta', '')}>
+                    <Text style={styles.clearDateBtnText}>{t('facturas.clearDate')}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <TextInput
+                style={styles.input}
+                placeholder={t('facturas.paymentMethod')}
+                value={reciboForm.forma_pago}
+                onChangeText={(tx) => setReciboForm((p) => ({ ...p, forma_pago: tx }))}
+              />
               <Pressable
                 style={[styles.primaryButton, styles.primaryButtonGreen]}
                 onPress={() => crearRecibo.mutate()}
@@ -510,6 +596,32 @@ export default function InvoicesScreen() {
           </>
         )}
       </ScrollView>
+
+      <Modal visible={iosDateModal != null} transparent animationType="fade" onRequestClose={() => setIosDateModal(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>{t('facturas.pickDate')}</Text>
+            {iosDateModal ? (
+              <DateTimePicker
+                value={iosDateModal.date}
+                mode="date"
+                display="spinner"
+                onChange={(_, d) => {
+                  if (d) setIosDateModal((m) => (m ? { ...m, date: d } : null));
+                }}
+              />
+            ) : null}
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => setIosDateModal(null)}>
+                <Text style={styles.modalBtnGhostText}>{t('common.cancel')}</Text>
+              </Pressable>
+              <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={confirmIosReciboDate}>
+                <Text style={styles.modalBtnPrimaryText}>{t('common.save')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -664,5 +776,71 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#2563eb',
   },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  datePressable: {
+    flex: 1,
+    marginBottom: 0,
+    justifyContent: 'center',
+  },
+  dateText: { fontSize: 15, color: '#111827' },
+  datePlaceholder: { fontSize: 15, color: '#9ca3af' },
+  clearDateBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  clearDateBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalBox: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalBtnGhost: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  modalBtnGhostText: { fontWeight: '700', color: '#374151' },
+  modalBtnPrimary: { backgroundColor: '#059669' },
+  modalBtnPrimaryText: { fontWeight: '800', color: 'white' },
 });
 

@@ -13,6 +13,7 @@ export default function SettingsStackLayout() {
       <Stack.Screen name="mir" />
       <Stack.Screen name="properties" />
       <Stack.Screen name="country" />
+      <Stack.Screen name="language" />
     </Stack>
   );
 }

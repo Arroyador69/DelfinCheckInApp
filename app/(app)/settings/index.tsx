@@ -84,6 +84,11 @@ export default function SettingsScreen() {
           subtitle={t('mobile.settings.hubCountrySubtitle')}
           onPress={() => router.push('/(app)/settings/country' as any)}
         />
+        <Item
+          title={t('settings.tabs.language')}
+          subtitle={t('mobile.settings.languageSubtitle')}
+          onPress={() => router.push('/(app)/settings/language' as any)}
+        />
       </View>
 
       <Pressable style={styles.signOutButton} onPress={handleSignOut}>
