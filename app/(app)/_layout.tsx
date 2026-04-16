@@ -2,14 +2,15 @@
 // LAYOUT DE LA APP (Tabs + Menú Hamburguesa)
 // =====================================================
 
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { useAuth } from '@/lib/auth';
 import { Redirect } from 'expo-router';
-import { Text, Pressable, View } from 'react-native';
+import { Text, Pressable } from 'react-native';
 import { useState } from 'react';
 import DrawerMenu from '@/components/DrawerMenu';
 import { Menu } from 'lucide-react-native';
 import PendingReservationsBell from '@/components/PendingReservationsBell';
+import { t } from '@/lib/i18n';
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
@@ -45,33 +46,33 @@ export default function AppLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Inicio',
-            tabBarLabel: 'Inicio',
-            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🏠</Text>,
+            title: t('navigation.dashboard'),
+            tabBarLabel: t('navigation.dashboard'),
+            tabBarIcon: () => <Text style={{ fontSize: 20 }}>🏠</Text>,
           }}
         />
         <Tabs.Screen
           name="reservations"
           options={{
-            title: 'Reservas',
-            tabBarLabel: 'Reservas',
-            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📅</Text>,
+            title: t('navigation.reservations'),
+            tabBarLabel: t('navigation.reservations'),
+            tabBarIcon: () => <Text style={{ fontSize: 20 }}>📅</Text>,
           }}
         />
         <Tabs.Screen
           name="calendar"
           options={{
-            title: 'Calendario',
-            tabBarLabel: 'Calendario',
-            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📆</Text>,
+            title: t('navigation.calendar'),
+            tabBarLabel: t('navigation.calendar'),
+            tabBarIcon: () => <Text style={{ fontSize: 20 }}>📆</Text>,
           }}
         />
         <Tabs.Screen
           name="settings"
           options={{
-            title: 'Ajustes',
-            tabBarLabel: 'Ajustes',
-            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>⚙️</Text>,
+            title: t('navigation.settings'),
+            tabBarLabel: t('navigation.settings'),
+            tabBarIcon: () => <Text style={{ fontSize: 20 }}>⚙️</Text>,
           }}
         />
         {/* Pantallas ocultas del menú hamburguesa */}
@@ -79,21 +80,21 @@ export default function AppLayout() {
           name="invoices"
           options={{
             href: null, // Ocultar del tab bar
-            title: 'Facturas/Recibos',
+            title: t('navigation.invoices'),
           }}
         />
         <Tabs.Screen
           name="mir-comunicaciones"
           options={{
             href: null,
-            title: 'Registros huéspedes',
+            title: t('navigation.guestRegistrations'),
           }}
         />
         <Tabs.Screen
           name="payment-links"
           options={{
             href: null,
-            title: 'Enlaces de Pago',
+            title: t('settings.tabs.paymentLinks'),
           }}
         />
       </Tabs>

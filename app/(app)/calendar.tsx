@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useState, useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ArrowDownCircle, ArrowUpCircle, Users } from 'lucide-react-native';
+import { getLocaleTag, t } from '@/lib/i18n';
 
 interface Availability {
   property_id: number;
@@ -229,7 +230,7 @@ export default function CalendarScreen() {
   };
 
   const formatDisplayDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('es-ES', {
+    return new Date(dateStr).toLocaleDateString(getLocaleTag(), {
       day: 'numeric',
       month: 'long',
       year: 'numeric',
@@ -239,7 +240,7 @@ export default function CalendarScreen() {
   if (isLoading && !data) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Cargando calendario...</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -369,7 +370,7 @@ export default function CalendarScreen() {
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <ArrowDownCircle size={18} color="#10b981" />
-                  <Text style={styles.sectionTitle}>Quién llega hoy</Text>
+                  <Text style={styles.sectionTitle}>{t('mobile.dashboard.arrivingTodayTitle')}</Text>
                 </View>
                 {classifiedEvents.arriving.map((ev, idx) => (
                   <View key={idx} style={[styles.roomCard, styles.roomCardArriving]}>
@@ -400,7 +401,7 @@ export default function CalendarScreen() {
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <ArrowUpCircle size={18} color="#f59e0b" />
-                  <Text style={styles.sectionTitle}>Quién se va hoy</Text>
+                  <Text style={styles.sectionTitle}>{t('mobile.dashboard.leavingTodayTitle')}</Text>
                 </View>
                 {classifiedEvents.leaving.map((ev, idx) => (
                   <View key={idx} style={[styles.roomCard, styles.roomCardLeaving]}>
@@ -434,7 +435,7 @@ export default function CalendarScreen() {
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <Users size={18} color="#10b981" />
-                  <Text style={styles.sectionTitle}>Quién está hoy</Text>
+                  <Text style={styles.sectionTitle}>{t('mobile.dashboard.stayingTodayTitle')}</Text>
                 </View>
                 {classifiedEvents.staying.map((ev, idx) => (
                   <View key={idx} style={[styles.roomCard, styles.roomCardStaying]}>
@@ -467,7 +468,7 @@ export default function CalendarScreen() {
               classifiedEvents.leaving.length === 0 &&
               classifiedEvents.staying.length === 0 && (
                 <Text style={styles.emptyDetailsText}>
-                  No hay reservas para este día
+                  {t('mobile.calendar.noReservationsForDay')}
                 </Text>
               )}
           </View>

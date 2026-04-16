@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useState } from 'react';
 import { Search, Mail, Phone, Calendar, Users } from 'lucide-react-native';
+import { t } from '@/lib/i18n';
 
 interface GuestRegistration {
   id: string;
@@ -31,6 +32,12 @@ interface GuestRegistration {
     tipoPago?: string;
   };
   data?: any;
+}
+
+interface GuestRegistrationStats {
+  total_submissions: number;
+  submissions_last_7_days: number;
+  submissions_last_30_days: number;
 }
 
 export default function MIRComunicacionesScreen() {
@@ -159,7 +166,11 @@ export default function MIRComunicacionesScreen() {
   });
 
   const registrations: GuestRegistration[] = data?.registrations || [];
-  const stats = data?.stats || {};
+  const stats: GuestRegistrationStats = (data?.stats as GuestRegistrationStats | undefined) ?? {
+    total_submissions: 0,
+    submissions_last_7_days: 0,
+    submissions_last_30_days: 0,
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -180,7 +191,7 @@ export default function MIRComunicacionesScreen() {
   if (isLoading && !data) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Cargando comunicaciones...</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -323,10 +334,10 @@ export default function MIRComunicacionesScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
-              {searchTerm ? 'No se encontraron resultados' : 'No hay comunicaciones registradas'}
+              {searchTerm ? t('reservations.noResultsTitle') : t('mobile.guestRegistrations.empty')}
             </Text>
             <Text style={styles.emptySubtext}>
-              Los formularios enviados desde tu página aparecerán aquí
+              {t('mobile.guestRegistrations.hint')}
             </Text>
           </View>
         }

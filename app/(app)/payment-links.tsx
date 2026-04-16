@@ -6,8 +6,9 @@ import { View, Text, FlatList, StyleSheet, RefreshControl, Pressable, Modal, Scr
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useState } from 'react';
-import { Plus, X, Copy, CheckCircle, XCircle, ExternalLink } from 'lucide-react-native';
+import { Plus, X, Copy, CheckCircle, XCircle } from 'lucide-react-native';
 import { Clipboard } from 'react-native';
+import { getLocaleTag, t } from '@/lib/i18n';
 
 interface PaymentLink {
   id: number;
@@ -127,10 +128,10 @@ export default function PaymentLinksScreen() {
       queryClient.invalidateQueries({ queryKey: ['payment-links'] });
       setShowCreateModal(false);
       resetForm();
-      Alert.alert('Éxito', 'Enlace de pago creado correctamente');
+      Alert.alert(t('common.success'), t('settings.paymentLinks.createSuccess'));
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.error || 'Error al crear el enlace');
+      Alert.alert(t('common.error'), error.response?.data?.error || t('settings.paymentLinks.errorCreate'));
     },
   });
 
@@ -141,16 +142,16 @@ export default function PaymentLinksScreen() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-links'] });
-      Alert.alert('Éxito', 'Enlace eliminado correctamente');
+      Alert.alert(t('common.success'), t('settings.paymentLinks.deleteSuccess'));
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.error || 'Error al eliminar el enlace');
+      Alert.alert(t('common.error'), error.response?.data?.error || t('settings.paymentLinks.errorDelete'));
     },
   });
 
   const handleCreate = () => {
     if (!formData.resource_id || !formData.check_in_date || !formData.check_out_date || !formData.total_price) {
-      Alert.alert('Error', 'Por favor, completa todos los campos obligatorios');
+      Alert.alert(t('common.error'), t('settings.paymentLinks.requiredFields'));
       return;
     }
     createLink.mutate(formData);
@@ -160,17 +161,17 @@ export default function PaymentLinksScreen() {
     Clipboard.setString(url);
     setCopiedLink(linkCode);
     setTimeout(() => setCopiedLink(null), 2000);
-    Alert.alert('Copiado', 'Enlace copiado al portapapeles');
+    Alert.alert(t('common.success'), t('settings.paymentLinks.urlCopied'));
   };
 
   const handleDelete = (linkCode: string) => {
     Alert.alert(
-      'Eliminar enlace',
-      '¿Estás seguro de que quieres eliminar este enlace?',
+      t('settings.paymentLinks.deleteLink'),
+      t('settings.paymentLinks.deleteConfirm'),
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Eliminar',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => deleteLink.mutate(linkCode),
         },
@@ -195,7 +196,7 @@ export default function PaymentLinksScreen() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('es-ES', {
+    return new Date(dateStr).toLocaleDateString(getLocaleTag(), {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -205,10 +206,10 @@ export default function PaymentLinksScreen() {
   const getResourceName = (link: PaymentLink) => {
     if (link.resource_type === 'room') {
       const slot = slots.find(s => String(s.room_id) === String(link.resource_id));
-      return slot?.room_name || slot?.property_name || `Habitación ${link.resource_id}`;
+      return slot?.room_name || slot?.property_name || t('reservations.roomFallback', { number: link.resource_id });
     } else {
       const property = properties.find(p => p.id === link.resource_id);
-      return property?.property_name || `Propiedad ${link.resource_id}`;
+      return property?.property_name || t('settings.paymentLinks.propertyFallback', { id: link.resource_id });
     }
   };
 
@@ -216,20 +217,20 @@ export default function PaymentLinksScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Enlaces de Pago</Text>
+        <Text style={styles.headerTitle}>{t('settings.paymentLinks.title')}</Text>
         <Pressable
           style={styles.createButton}
           onPress={() => setShowCreateModal(true)}
         >
           <Plus size={20} color="white" />
-          <Text style={styles.createButtonText}>Nuevo</Text>
+          <Text style={styles.createButtonText}>{t('settings.paymentLinks.newLink')}</Text>
         </Pressable>
       </View>
 
       {/* Lista de enlaces */}
       {isLoading && !linksData ? (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Cargando enlaces...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       ) : (
         <FlatList
@@ -246,12 +247,12 @@ export default function PaymentLinksScreen() {
                     {item.is_paid ? (
                       <View style={[styles.statusBadge, styles.statusPaid]}>
                         <CheckCircle size={16} color="#10b981" />
-                        <Text style={styles.statusTextPaid}>Pagado</Text>
+                        <Text style={styles.statusTextPaid}>{t('settings.paymentLinks.paid')}</Text>
                       </View>
                     ) : (
                       <View style={[styles.statusBadge, styles.statusUnpaid]}>
                         <XCircle size={16} color="#ef4444" />
-                        <Text style={styles.statusTextUnpaid}>No pagado</Text>
+                        <Text style={styles.statusTextUnpaid}>{t('mobile.paymentLinks.unpaid')}</Text>
                       </View>
                     )}
                   </View>
@@ -275,13 +276,13 @@ export default function PaymentLinksScreen() {
               </View>
 
               <View style={styles.priceContainer}>
-                <Text style={styles.priceLabel}>Precio total:</Text>
+                <Text style={styles.priceLabel}>{t('settings.paymentLinks.totalPriceLabel')}</Text>
                 <Text style={styles.priceValue}>{item.total_price.toFixed(2)} €</Text>
               </View>
 
               <View style={styles.usageContainer}>
                 <Text style={styles.usageText}>
-                  Usos: {item.usage_count} / {item.max_uses}
+                  {t('mobile.paymentLinks.uses')}: {item.usage_count} / {item.max_uses}
                 </Text>
               </View>
 
@@ -292,7 +293,7 @@ export default function PaymentLinksScreen() {
                 >
                   <Copy size={16} color="#2563eb" />
                   <Text style={styles.copyButtonText}>
-                    {copiedLink === item.link_code ? 'Copiado!' : 'Copiar enlace'}
+                    {copiedLink === item.link_code ? t('mobile.paymentLinks.copiedLabel') : t('settings.paymentLinks.copyLink')}
                   </Text>
                 </Pressable>
               )}
@@ -300,7 +301,7 @@ export default function PaymentLinksScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No hay enlaces de pago</Text>
+              <Text style={styles.emptyText}>{t('settings.paymentLinks.noLinks')}</Text>
             </View>
           }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -318,22 +319,22 @@ export default function PaymentLinksScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nuevo Enlace de Pago</Text>
+              <Text style={styles.modalTitle}>{t('settings.paymentLinks.createFormTitle')}</Text>
               <Pressable onPress={() => setShowCreateModal(false)}>
                 <X size={24} color="#6b7280" />
               </Pressable>
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.label}>Nombre del enlace (opcional)</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.linkNameLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.link_name}
                 onChangeText={(text) => setFormData({ ...formData, link_name: text })}
-                placeholder="Ej: Reserva Juan - Habitación 1"
+                placeholder={t('settings.paymentLinks.linkNamePlaceholder')}
               />
 
-              <Text style={styles.label}>Tipo de recurso *</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.resourceTypeLabel')}</Text>
               <View style={styles.pickerContainer}>
                 <Pressable
                   style={[
@@ -348,7 +349,7 @@ export default function PaymentLinksScreen() {
                       formData.resource_type === 'room' && styles.pickerOptionTextSelected,
                     ]}
                   >
-                    Habitación
+                    {t('settings.paymentLinks.room')}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -364,13 +365,13 @@ export default function PaymentLinksScreen() {
                       formData.resource_type === 'property' && styles.pickerOptionTextSelected,
                     ]}
                   >
-                    Propiedad
+                    {t('settings.paymentLinks.property')}
                   </Text>
                 </Pressable>
               </View>
 
               <Text style={styles.label}>
-                {formData.resource_type === 'room' ? 'Habitación *' : 'Propiedad *'}
+                {formData.resource_type === 'room' ? t('settings.paymentLinks.roomLabel') : t('settings.paymentLinks.propertyLabel')}
               </Text>
               <View style={styles.pickerContainer}>
                 {(formData.resource_type === 'room' ? slots : properties).map((item) => (
@@ -403,64 +404,64 @@ export default function PaymentLinksScreen() {
                 ))}
               </View>
 
-              <Text style={styles.label}>Check-in *</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.checkInLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.check_in_date}
                 onChangeText={(text) => setFormData({ ...formData, check_in_date: text })}
-                placeholder="YYYY-MM-DD"
+                placeholder={t('settings.paymentLinks.dateIsoPlaceholder')}
               />
 
-              <Text style={styles.label}>Check-out *</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.checkOutLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.check_out_date}
                 onChangeText={(text) => setFormData({ ...formData, check_out_date: text })}
-                placeholder="YYYY-MM-DD"
+                placeholder={t('settings.paymentLinks.dateIsoPlaceholder')}
               />
 
-              <Text style={styles.label}>Precio total *</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.totalPriceLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.total_price}
                 onChangeText={(text) => setFormData({ ...formData, total_price: text })}
-                placeholder="0.00"
+                placeholder={t('settings.paymentLinks.priceDecimalPlaceholder')}
                 keyboardType="decimal-pad"
               />
 
-              <Text style={styles.label}>Precio por noche (opcional)</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.pricePerNightLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.base_price_per_night}
                 onChangeText={(text) => setFormData({ ...formData, base_price_per_night: text })}
-                placeholder="0.00"
+                placeholder={t('settings.paymentLinks.priceDecimalPlaceholder')}
                 keyboardType="decimal-pad"
               />
 
-              <Text style={styles.label}>Tarifa de limpieza</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.cleaningFeeLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.cleaning_fee}
                 onChangeText={(text) => setFormData({ ...formData, cleaning_fee: text })}
-                placeholder="0.00"
+                placeholder={t('settings.paymentLinks.priceDecimalPlaceholder')}
                 keyboardType="decimal-pad"
               />
 
-              <Text style={styles.label}>Huéspedes esperados</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.expectedGuestsLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.expected_guests}
                 onChangeText={(text) => setFormData({ ...formData, expected_guests: text })}
-                placeholder="2"
+                placeholder={t('settings.paymentLinks.expectedGuestsPlaceholder')}
                 keyboardType="numeric"
               />
 
-              <Text style={styles.label}>Fecha de expiración (opcional)</Text>
+              <Text style={styles.label}>{t('settings.paymentLinks.expiryLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.expires_at}
                 onChangeText={(text) => setFormData({ ...formData, expires_at: text })}
-                placeholder="YYYY-MM-DD HH:MM"
+                placeholder={t('settings.paymentLinks.dateTimeIsoPlaceholder')}
               />
             </ScrollView>
 
@@ -469,7 +470,7 @@ export default function PaymentLinksScreen() {
                 style={[styles.modalButton, styles.modalButtonCancel]}
                 onPress={() => setShowCreateModal(false)}
               >
-                <Text style={styles.modalButtonTextCancel}>Cancelar</Text>
+                <Text style={styles.modalButtonTextCancel}>{t('common.cancel')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalButton, styles.modalButtonCreate]}
@@ -477,7 +478,7 @@ export default function PaymentLinksScreen() {
                 disabled={createLink.isPending}
               >
                 <Text style={styles.modalButtonTextCreate}>
-                  {createLink.isPending ? 'Creando...' : 'Crear'}
+                  {createLink.isPending ? t('common.loading') : t('settings.paymentLinks.createLink')}
                 </Text>
               </Pressable>
             </View>

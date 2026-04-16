@@ -5,6 +5,7 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useAuth } from '@/lib/auth';
+import { t } from '@/lib/i18n';
 import { 
   Home, 
   Calendar, 
@@ -22,13 +23,13 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { name: 'Dashboard', href: '/(app)', icon: Home },
-  { name: 'Reservas', href: '/(app)/reservations', icon: Calendar },
-  { name: 'Calendario', href: '/(app)/calendar', icon: Calendar },
-  { name: 'Facturas/Recibos', href: '/(app)/invoices', icon: Receipt },
-  { name: 'Registros de huéspedes', href: '/(app)/mir-comunicaciones', icon: FileText },
-  { name: 'Enlaces de Pago', href: '/(app)/payment-links', icon: CreditCard },
-  { name: 'Configuración', href: '/(app)/settings', icon: Settings },
+  { name: t('navigation.dashboard'), href: '/(app)', icon: Home },
+  { name: t('navigation.reservations'), href: '/(app)/reservations', icon: Calendar },
+  { name: t('navigation.calendar'), href: '/(app)/calendar', icon: Calendar },
+  { name: t('navigation.invoices'), href: '/(app)/invoices', icon: Receipt },
+  { name: t('navigation.guestRegistrations'), href: '/(app)/mir-comunicaciones', icon: FileText },
+  { name: t('settings.tabs.paymentLinks'), href: '/(app)/payment-links', icon: CreditCard },
+  { name: t('navigation.settings'), href: '/(app)/settings', icon: Settings },
 ];
 
 interface DrawerMenuProps {
@@ -98,7 +99,7 @@ export default function DrawerMenu({ isOpen, onClose }: DrawerMenuProps) {
             <Text style={styles.userName}>{session?.user.fullName}</Text>
           </View>
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Cerrar Sesión</Text>
+            <Text style={styles.logoutText}>{t('dashboard.logout')}</Text>
           </Pressable>
         </View>
       </View>

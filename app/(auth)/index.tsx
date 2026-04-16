@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'expo-router';
+import { t } from '@/lib/i18n';
 
 export default function LoginScreen() {
   const { signIn, signOut } = useAuth();
@@ -16,7 +17,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      Alert.alert(t('common.error'), `${t('auth.errors.enterEmail')}\n${t('auth.errors.enterPassword')}`);
       return;
     }
 
@@ -26,10 +27,10 @@ export default function LoginScreen() {
       if (success) {
         router.replace('/(app)');
       } else {
-        Alert.alert('Error', 'Email o contraseña incorrectos');
+        Alert.alert(t('common.error'), t('auth.errors.incorrectPassword'));
       }
     } catch (error) {
-      Alert.alert('Error', 'Error de conexión. Intenta de nuevo.');
+      Alert.alert(t('common.error'), t('auth.errors.connectionError'));
     } finally {
       setLoading(false);
     }
@@ -39,11 +40,11 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Delfín Check-in</Text>
-        <Text style={styles.subtitle}>Inicia sesión en tu cuenta</Text>
+        <Text style={styles.subtitle}>{t('auth.welcome')}</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('auth.emailPlaceholder')}
           placeholderTextColor="#9ca3af"
           value={email}
           onChangeText={setEmail}
@@ -55,7 +56,7 @@ export default function LoginScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Contraseña"
+          placeholder={t('auth.passwordPlaceholder')}
           placeholderTextColor="#9ca3af"
           value={password}
           onChangeText={setPassword}
@@ -72,7 +73,7 @@ export default function LoginScreen() {
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.buttonText}>Iniciar Sesión</Text>
+            <Text style={styles.buttonText}>{t('auth.loginButton')}</Text>
           )}
         </Pressable>
 
@@ -80,11 +81,11 @@ export default function LoginScreen() {
           style={styles.secondaryButton}
           onPress={async () => {
             await signOut();
-            Alert.alert('Listo', 'Sesión limpiada. Ya puedes iniciar sesión de nuevo.');
+            Alert.alert(t('common.success'), t('common.reset'));
           }}
           disabled={loading}
         >
-          <Text style={styles.secondaryButtonText}>Limpiar sesión</Text>
+          <Text style={styles.secondaryButtonText}>{t('common.reset')}</Text>
         </Pressable>
       </View>
     </View>

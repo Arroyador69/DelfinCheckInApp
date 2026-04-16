@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useState, useMemo } from 'react';
 import { Users, ArrowDownCircle, ArrowUpCircle, Calendar, BellRing } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { getLocaleTag, t } from '@/lib/i18n';
 
 import {
   PendingReservationItem,
@@ -119,7 +120,7 @@ export default function DashboardScreen() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('es-ES', {
+    return new Date(dateStr).toLocaleDateString(getLocaleTag(), {
       day: 'numeric',
       month: 'short',
     });
@@ -154,7 +155,9 @@ export default function DashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <Text style={styles.greeting}>Hola, {session?.user.fullName || session?.user.email}</Text>
+        <Text style={styles.greeting}>
+          {t('mobile.dashboard.greeting', { name: session?.user.fullName || session?.user.email || '' })}
+        </Text>
         <Text style={styles.tenantName}>{session?.user.tenant.name}</Text>
       </View>
 
@@ -162,14 +165,14 @@ export default function DashboardScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <BellRing size={20} color="#b45309" />
-            <Text style={styles.cardTitle}>Pendientes de revisión</Text>
+            <Text style={styles.cardTitle}>{t('mobile.dashboard.pendingReviewTitle')}</Text>
           </View>
           <View style={[styles.badge, styles.badgePending]}>
             <Text style={styles.badgeTextPending}>{pendingCount}</Text>
           </View>
         </View>
         {pendingCount === 0 ? (
-          <Text style={styles.emptyText}>No hay reservas pendientes de completar</Text>
+          <Text style={styles.emptyText}>{t('mobile.dashboard.noPending')}</Text>
         ) : (
           <>
             {pendingItems.slice(0, 3).map((item) => (
@@ -216,16 +219,16 @@ export default function DashboardScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <Users size={20} color="#2563eb" />
-            <Text style={styles.cardTitle}>Quién hay hoy</Text>
+            <Text style={styles.cardTitle}>{t('mobile.dashboard.stayingTodayTitle')}</Text>
           </View>
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{stayingToday.length}</Text>
           </View>
         </View>
         {isLoading ? (
-          <Text style={styles.emptyText}>Cargando...</Text>
+          <Text style={styles.emptyText}>{t('common.loading')}</Text>
         ) : stayingToday.length === 0 ? (
-          <Text style={styles.emptyText}>No hay huéspedes alojados hoy</Text>
+          <Text style={styles.emptyText}>{t('mobile.dashboard.stayingTodayEmpty')}</Text>
         ) : (
           stayingToday.map((reservation, index) => (
             <ReservationCard key={reservation.id || index} reservation={reservation} />
@@ -238,16 +241,16 @@ export default function DashboardScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <ArrowDownCircle size={20} color="#10b981" />
-            <Text style={styles.cardTitle}>Quién llega hoy</Text>
+            <Text style={styles.cardTitle}>{t('mobile.dashboard.arrivingTodayTitle')}</Text>
           </View>
           <View style={[styles.badge, styles.badgeSuccess]}>
             <Text style={styles.badgeText}>{arrivingToday.length}</Text>
           </View>
         </View>
         {isLoading ? (
-          <Text style={styles.emptyText}>Cargando...</Text>
+          <Text style={styles.emptyText}>{t('common.loading')}</Text>
         ) : arrivingToday.length === 0 ? (
-          <Text style={styles.emptyText}>No hay llegadas programadas para hoy</Text>
+          <Text style={styles.emptyText}>{t('mobile.dashboard.arrivingTodayEmpty')}</Text>
         ) : (
           arrivingToday.map((reservation, index) => (
             <ReservationCard key={reservation.id || index} reservation={reservation} />
@@ -260,16 +263,16 @@ export default function DashboardScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <ArrowUpCircle size={20} color="#f59e0b" />
-            <Text style={styles.cardTitle}>Quién se va hoy</Text>
+            <Text style={styles.cardTitle}>{t('mobile.dashboard.leavingTodayTitle')}</Text>
           </View>
           <View style={[styles.badge, styles.badgeWarning]}>
             <Text style={styles.badgeText}>{leavingToday.length}</Text>
           </View>
         </View>
         {isLoading ? (
-          <Text style={styles.emptyText}>Cargando...</Text>
+          <Text style={styles.emptyText}>{t('common.loading')}</Text>
         ) : leavingToday.length === 0 ? (
-          <Text style={styles.emptyText}>No hay salidas programadas para hoy</Text>
+          <Text style={styles.emptyText}>{t('mobile.dashboard.leavingTodayEmpty')}</Text>
         ) : (
           leavingToday.map((reservation, index) => (
             <ReservationCard key={reservation.id || index} reservation={reservation} />
@@ -282,13 +285,13 @@ export default function DashboardScreen() {
         <View style={styles.cardHeader}>
           <View style={styles.cardHeaderLeft}>
             <Calendar size={20} color="#8b5cf6" />
-            <Text style={styles.cardTitle}>Próximas reservas</Text>
+            <Text style={styles.cardTitle}>{t('mobile.dashboard.upcomingTitle')}</Text>
           </View>
         </View>
         {isLoading ? (
-          <Text style={styles.emptyText}>Cargando...</Text>
+          <Text style={styles.emptyText}>{t('common.loading')}</Text>
         ) : upcomingReservations.length === 0 ? (
-          <Text style={styles.emptyText}>No hay reservas próximas</Text>
+          <Text style={styles.emptyText}>{t('mobile.dashboard.upcomingEmpty')}</Text>
         ) : (
           upcomingReservations.map((reservation, index) => (
             <ReservationCard key={reservation.id || index} reservation={reservation} />

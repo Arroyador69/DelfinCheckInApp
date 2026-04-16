@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { Search, Plus, X, CheckCircle2, BellRing, Pencil, Trash2 } from 'lucide-react-native';
+import { t } from '@/lib/i18n';
 
 import {
   PendingReservationItem,
@@ -102,8 +103,8 @@ export default function ReservationsScreen() {
     },
     onError: (error: any) => {
       Alert.alert(
-        'Error',
-        error.response?.data?.error || 'No se pudo marcar la reserva como revisada'
+        t('common.error'),
+        error.response?.data?.error || t('reservations.mobile.markReviewedError')
       );
     },
   });
@@ -156,10 +157,10 @@ export default function ReservationsScreen() {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
       setShowCreateModal(false);
       resetForm();
-      Alert.alert('Éxito', 'Reserva creada correctamente');
+      Alert.alert(t('common.success'), t('reservations.createSuccess'));
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.error || 'Error al crear la reserva');
+      Alert.alert(t('common.error'), error.response?.data?.error || t('reservations.createErrorDefault'));
     },
   });
 
@@ -187,10 +188,10 @@ export default function ReservationsScreen() {
       setShowCreateModal(false);
       setEditingReservationId(null);
       resetForm();
-      Alert.alert('Éxito', 'Reserva actualizada correctamente');
+      Alert.alert(t('common.success'), t('reservations.updateSuccess'));
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.error || 'Error al actualizar la reserva');
+      Alert.alert(t('common.error'), error.response?.data?.error || t('reservations.updateErrorDefault'));
     },
   });
 
@@ -202,16 +203,16 @@ export default function ReservationsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reservations'] });
       queryClient.invalidateQueries({ queryKey: ['pending-reservations-review'] });
-      Alert.alert('Éxito', 'Reserva eliminada correctamente');
+      Alert.alert(t('common.success'), t('reservations.deleteSuccess'));
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.error || 'Error al eliminar la reserva');
+      Alert.alert(t('common.error'), error.response?.data?.error || t('reservations.deleteErrorDefault'));
     },
   });
 
   const handleCreate = () => {
     if (!formData.room_id || !formData.guest_name || !formData.check_in || !formData.check_out) {
-      Alert.alert('Error', 'Por favor, completa todos los campos obligatorios');
+      Alert.alert(t('common.error'), t('reservations.requiredFields'));
       return;
     }
     if (editingReservationId) {
@@ -277,12 +278,12 @@ export default function ReservationsScreen() {
 
   const handleMarkReviewed = (reservationId: string) => {
     Alert.alert(
-      'Marcar como revisada',
-      'Esto quitará la reserva de pendientes y confirmará que ya la has revisado.',
+      t('reservations.mobile.markReviewedConfirmTitle'),
+      t('reservations.mobile.markReviewedConfirmBody'),
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Confirmar',
+          text: t('common.confirm'),
           onPress: () => reviewMutation.mutate(reservationId),
         },
       ]
@@ -292,21 +293,21 @@ export default function ReservationsScreen() {
   const handleDeleteReservation = (reservation: Reservation) => {
     const reservationId = String(reservation.id);
     Alert.alert(
-      'Eliminar reserva',
-      `Vas a eliminar la reserva de ${reservation.guest_name}. Esta acción no se puede deshacer.`,
+      t('reservations.deleteReservation'),
+      t('reservations.confirmDelete'),
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Continuar',
+          text: t('common.confirm'),
           style: 'destructive',
           onPress: () => {
             Alert.alert(
-              'Confirmación final',
-              '¿Seguro que quieres eliminar definitivamente esta reserva?',
+              t('common.confirm'),
+              t('reservations.deleteWarning'),
               [
-                { text: 'No', style: 'cancel' },
+                { text: t('common.no'), style: 'cancel' },
                 {
-                  text: 'Sí, eliminar',
+                  text: t('common.delete'),
                   style: 'destructive',
                   onPress: () => deleteReservation.mutate(reservationId),
                 },
@@ -326,7 +327,7 @@ export default function ReservationsScreen() {
           <Search size={20} color="#6b7280" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar reservas..."
+            placeholder={t('reservations.searchPlaceholder')}
             value={searchTerm}
             onChangeText={setSearchTerm}
             placeholderTextColor="#9ca3af"
@@ -337,7 +338,7 @@ export default function ReservationsScreen() {
           onPress={() => setShowCreateModal(true)}
         >
           <Plus size={20} color="white" />
-          <Text style={styles.createButtonText}>Nueva</Text>
+          <Text style={styles.createButtonText}>{t('common.create')}</Text>
         </Pressable>
       </View>
 
@@ -363,7 +364,7 @@ export default function ReservationsScreen() {
               selectedFilter === 'pending' && styles.filterChipTextPendingActive,
             ]}
           >
-            Pendientes ({pendingCount})
+            {t('navigation.pendingReservationsReviewDropdownTitle')} ({pendingCount})
           </Text>
         </Pressable>
       </View>
@@ -432,7 +433,7 @@ export default function ReservationsScreen() {
                   >
                     <CheckCircle2 size={16} color="white" />
                     <Text style={styles.pendingActionButtonText}>
-                      {reviewMutation.isPending ? 'Guardando...' : 'Revisada'}
+                      {reviewMutation.isPending ? t('common.loading') : t('reservations.markReviewed')}
                     </Text>
                   </Pressable>
                 </View>
@@ -466,7 +467,7 @@ export default function ReservationsScreen() {
                   onPress={() => openEditModal(item)}
                 >
                   <Pencil size={16} color="#2563eb" />
-                  <Text style={styles.editButtonText}>Editar</Text>
+                  <Text style={styles.editButtonText}>{t('common.edit')}</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.actionButton, styles.deleteActionButton]}
@@ -475,7 +476,7 @@ export default function ReservationsScreen() {
                 >
                   <Trash2 size={16} color="#dc2626" />
                   <Text style={styles.deleteButtonText}>
-                    {deleteReservation.isPending ? 'Eliminando...' : 'Eliminar'}
+                    {deleteReservation.isPending ? t('reservations.deleting') : t('common.delete')}
                   </Text>
                 </Pressable>
               </View>
@@ -485,7 +486,7 @@ export default function ReservationsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
-              {searchTerm ? 'No se encontraron reservas' : 'No hay reservas'}
+              {searchTerm ? t('reservations.noResultsTitle') : t('reservations.emptyTitle')}
             </Text>
           </View>
         }
@@ -503,7 +504,9 @@ export default function ReservationsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editingReservationId ? 'Editar Reserva' : 'Nueva Reserva'}</Text>
+              <Text style={styles.modalTitle}>
+                {editingReservationId ? t('reservations.editReservation') : t('reservations.createReservation')}
+              </Text>
               <Pressable
                 onPress={() => {
                   setShowCreateModal(false);
@@ -515,7 +518,7 @@ export default function ReservationsScreen() {
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <Text style={styles.label}>Habitación *</Text>
+              <Text style={styles.label}>{t('reservations.form.roomLabel')}</Text>
               <View style={styles.pickerContainer}>
                 {rooms.map((room) => (
                   <Pressable
@@ -538,34 +541,34 @@ export default function ReservationsScreen() {
                 ))}
               </View>
 
-              <Text style={styles.label}>Nombre del huésped *</Text>
+              <Text style={styles.label}>{t('reservations.form.guestNameLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.guest_name}
                 onChangeText={(text) => setFormData({ ...formData, guest_name: text })}
-                placeholder="Nombre completo"
+                placeholder={t('reservations.form.guestNamePlaceholder')}
               />
 
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>{t('reservations.form.guestEmailLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.guest_email}
                 onChangeText={(text) => setFormData({ ...formData, guest_email: text })}
-                placeholder="email@ejemplo.com"
+                placeholder={t('reservations.form.guestEmailPlaceholder')}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
 
-              <Text style={styles.label}>Teléfono</Text>
+              <Text style={styles.label}>{t('reservations.form.guestPhoneLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.guest_phone}
                 onChangeText={(text) => setFormData({ ...formData, guest_phone: text })}
-                placeholder="+34 600 000 000"
+                placeholder={t('reservations.form.guestPhonePlaceholder')}
                 keyboardType="phone-pad"
               />
 
-              <Text style={styles.label}>Número de huéspedes</Text>
+              <Text style={styles.label}>{t('reservations.form.guestCountLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.guest_count}
@@ -574,7 +577,7 @@ export default function ReservationsScreen() {
                 keyboardType="numeric"
               />
 
-              <Text style={styles.label}>Check-in *</Text>
+              <Text style={styles.label}>{t('reservations.form.checkInLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.check_in}
@@ -582,7 +585,7 @@ export default function ReservationsScreen() {
                 placeholder="YYYY-MM-DD"
               />
 
-              <Text style={styles.label}>Check-out *</Text>
+              <Text style={styles.label}>{t('reservations.form.checkOutLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.check_out}
@@ -590,7 +593,7 @@ export default function ReservationsScreen() {
                 placeholder="YYYY-MM-DD"
               />
 
-              <Text style={styles.label}>Precio total</Text>
+              <Text style={styles.label}>{t('reservations.totalPrice')}</Text>
               <TextInput
                 style={styles.input}
                 value={formData.total_price}
@@ -608,7 +611,7 @@ export default function ReservationsScreen() {
                   resetForm();
                 }}
               >
-                <Text style={styles.modalButtonTextCancel}>Cancelar</Text>
+                <Text style={styles.modalButtonTextCancel}>{t('common.cancel')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.modalButton, styles.modalButtonCreate]}
@@ -618,11 +621,11 @@ export default function ReservationsScreen() {
                 <Text style={styles.modalButtonTextCreate}>
                   {editingReservationId
                     ? updateReservation.isPending
-                      ? 'Guardando...'
-                      : 'Guardar cambios'
+                      ? t('common.loading')
+                      : t('common.save')
                     : createReservation.isPending
-                      ? 'Creando...'
-                      : 'Crear'}
+                      ? t('common.loading')
+                      : t('common.create')}
                 </Text>
               </Pressable>
             </View>
